@@ -1,0 +1,5 @@
+dataset: openai/gsm8k
+subset: main
+split: train[:5]
+seed: 123
+output_dir: Outputs/smoke
