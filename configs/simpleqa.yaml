@@ -1,0 +1,5 @@
+dataset: simpleqa
+split: test   # placeholder for uniformity
+n_samples: 10
+seed: 123
+output_dir: Outputs/simpleqa
