@@ -1,4 +1,7 @@
 # src/app/runner.py
+from dotenv import load_dotenv
+load_dotenv()
+
 import argparse
 import json
 from datetime import datetime
@@ -8,7 +11,8 @@ from omegaconf import OmegaConf
 
 from src.data.gsm8k_loader import load_gsm8k
 from src.data.simpleqa_loader import load_simpleqa
-from src.models.slm import slm_answer  # SLM stub (implement later)
+from src.models.slm import slm_answer
+from src.models.llm import llm_answer
 from src.eval.metrics import run_eval
 
 
@@ -26,7 +30,7 @@ def save_run_log(cfg, predictions, golds, latencies, metrics, outdir="logs/"):
     # Manifest (config + metrics)
     manifest_file = Path(outdir) / f"manifest_{timestamp}.json"
     manifest = {
-        "config": OmegaConf.to_container(cfg),
+        "config": OmegaConf.to_container(cfg, resolve=True),
         "metrics": metrics,
         "n": len(predictions),
         "timestamp": timestamp,
@@ -54,20 +58,29 @@ def main():
     else:
         raise ValueError(f"Unknown dataset {cfg.dataset}")
 
-    # 4) Run inference + metrics (all metrics computed in src/eval/metrics.py)
-    predictions, golds, latencies, metrics = run_eval(slm_answer, data)
+    # 4) Pick engine (SLM vs LLM)
+    if "slm" in cfg:
+        engine = lambda q: slm_answer(q, cfg)
+    elif "llm" in cfg:
+        engine = lambda q: llm_answer(q, cfg)
+    else:
+        raise ValueError("Config must define either 'slm' or 'llm' block")
 
-    # 5) Report summary
+    # 5) Run inference + metrics
+    predictions, golds, latencies, metrics = run_eval(engine, data)
+
+    # 6) Report summary
     print(
         "Acc={accuracy:.3f}, EM={em:.3f}, F1={f1:.3f}, "
         "Latency={avg_latency:.3f}s (p95={p95_latency:.3f}s)".format(**metrics)
     )
 
-    # 6) Save logs
+    # 7) Save logs
     save_run_log(cfg, predictions, golds, latencies, metrics)
 
 
 if __name__ == "__main__":
     # Tip: run from repo root as a module to keep imports clean:
-    #   python -m src.app.runner --config configs/default.yaml
+    #   python -m src.app.runner --config configs/slm.yaml
+    #   python -m src.app.runner --config configs/llm.yaml
     main()

@@ -1,10 +1,12 @@
-# Virtual envs
+# Virtual environments
 .venv/
 venv/
 
 # Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
 # Jupyter
 .ipynb_checkpoints/
@@ -14,7 +16,16 @@ build/
 dist/
 *.egg-info/
 
-# OS
+# OS files
 .DS_Store
-.venv/
-.venv/
+
+# Environment variables
+.env
+
+# Logs & checkpoints
+logs/
+checkpoints/
+
+# Hugging Face / Transformers cache
+.hf_cache/
+transformers_cache/
