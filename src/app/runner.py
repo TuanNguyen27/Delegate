@@ -2,21 +2,21 @@
 import argparse
 from omegaconf import OmegaConf
 
-from dataio.gsm8k_loader import load_gsm8k
-from dataio.simpleqa_loader import load_simpleqa
-from engines.slm import slm_answer
+from src.data.gsm8k_loader import load_gsm8k
+from src.data.simpleqa_loader import load_simpleqa
+from models.slm import slm_answer # For SLM (to be put in later)
 from eval.metrics import compute_accuracy  # placeholder, replace with EM/F1 later
 
 def main():
-    # 1. Parse CLI args
+    # Parse CLI args
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True, help="Path to YAML config")
     args = ap.parse_args()
 
-    # 2. Load config
+    # Load config from argparse 
     cfg = OmegaConf.load(args.config)
 
-    # 3. Pick dataset
+    # Pick dataset
     if cfg.dataset == "openai/gsm8k":
         data = load_gsm8k(cfg)
     elif cfg.dataset == "simpleqa":
@@ -24,15 +24,15 @@ def main():
     else:
         raise ValueError(f"Unknown dataset {cfg.dataset}")
 
-    preds, golds = [], []
-    # 4. Loop through examples
+    predictions, golds = [], [] # Lists of predictions and ground truths ("golds")
+    # Loop through examples in the dataset
     for ex in data:
-        pred = slm_answer(ex["question"])   # engine stub
-        preds.append(pred)
-        golds.append(ex["answer"])
+        prediction = slm_answer(ex["question"])   # engine stub
+        predictions.append(prediction)
+        golds.append(ex["answer"]) 
 
-    # 5. Evaluate
-    acc = compute_accuracy(preds, golds)
+    # Evaluate
+    acc = compute_accuracy(predictions, golds)
     print(f"Accuracy: {acc:.3f}")
 
 if __name__ == "__main__":
