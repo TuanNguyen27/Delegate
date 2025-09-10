@@ -1,5 +1,6 @@
 dataset: simpleqa
-split: test   # placeholder for uniformity
+engine: slm # options: slm, llm
+split: test   # placeholder
 n_samples: 10
 seed: 123
 output_dir: Outputs/simpleqa
