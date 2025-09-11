@@ -1,5 +1,6 @@
 # configs/llm.yaml
 llm:
   model_name: gpt-4o-mini # change this
-  max_tokens: 128
+  max_tokens: 32
   temperature: 0.0
+  system_prompt: "Answer directly"

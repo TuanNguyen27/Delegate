@@ -1,3 +1,5 @@
+# src/models/llm.py
+
 import os
 from openai import OpenAI
 
@@ -12,13 +14,24 @@ def load_llm():
         _client = OpenAI()  # picks up API key from env var
     return _client
 
+import time
+
 def llm_answer(question: str, cfg) -> str:
-    """Generate an answer using an OpenAI model defined in cfg."""
     client = load_llm()
-    resp = client.chat.completions.create(
-        model=cfg.llm.model_name,
-        messages=[{"role": "user", "content": question}],
-        max_tokens=cfg.llm.max_tokens,
-        temperature=cfg.llm.temperature,
-    )
-    return resp.choices[0].message.content.strip()
+    for attempt in range(3):
+        try:
+            resp = client.chat.completions.create(
+                model=cfg.llm.model_name,
+                messages=[
+                    {"role": "system", "content": cfg.llm.system_prompt},
+                    {"role": "user", "content": question},
+                ],
+                max_tokens=cfg.llm.max_tokens,
+                temperature=cfg.llm.temperature,
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            if attempt == 2:
+                raise
+            print(f"Retrying after error: {e}")
+            time.sleep(2)
