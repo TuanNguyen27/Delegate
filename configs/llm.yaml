@@ -1,5 +1,5 @@
 # configs/llm.yaml
 llm:
-  model_name: gpt-4o-mini
+  model_name: gpt-4o-mini # change this
   max_tokens: 128
   temperature: 0.0

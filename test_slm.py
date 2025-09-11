@@ -10,7 +10,7 @@ def main():
     question = "What is the capital of France?"
     answer = slm_answer(question, cfg)
     
-    print("Q: " + answer)
+    print("Q: " + question)
     print("A: " + answer)
     
 if __name__ == "__main__":
