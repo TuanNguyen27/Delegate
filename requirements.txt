@@ -1,0 +1,13 @@
+# Core ML/DS
+torch>=2.2.0
+transformers>=4.45.0
+datasets
+pandas
+omegaconf
+python-dotenv
+
+# API
+openai>=1.0.0
+
+# Dev / utilities
+tqdm
