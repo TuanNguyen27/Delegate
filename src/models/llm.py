@@ -2,6 +2,7 @@
 
 import os
 from openai import OpenAI
+import time
 
 _client = None
 
@@ -14,10 +15,10 @@ def load_llm():
         _client = OpenAI()  # picks up API key from env var
     return _client
 
-import time
+
 
 def llm_answer(question: str, cfg) -> str:
-        """
+    """
     Query an OpenAI LLM (e.g., GPT-4o-mini) for an answer to a given question.
 
     Args:
