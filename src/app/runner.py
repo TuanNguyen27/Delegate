@@ -6,9 +6,7 @@ import argparse
 import json
 from datetime import datetime
 from pathlib import Path
-
 from omegaconf import OmegaConf
-
 from src.data.gsm8k_loader import load_gsm8k
 from src.data.simpleqa_loader import load_simpleqa
 from src.models.slm import slm_answer
