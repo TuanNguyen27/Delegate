@@ -13,7 +13,7 @@ def load_slm(model_name: str):
         _model = AutoModelForCausalLM.from_pretrained(
         model_name,
         device_map="cpu", # changed this and it works -- understand why -- why cpu? 
-        dtype=torch.float32, # changed this and it works -- understand float32
+        torch_dtype=torch.float32, # changed this and it works -- understand float32
         )
     return _tokenizer, _model
 
