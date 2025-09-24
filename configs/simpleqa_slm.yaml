@@ -1,9 +1,0 @@
-dataset: simpleqa
-split: test
-n_samples: 100
-seed: 123
-output_dir: Outputs/simpleqa
-
-slm:
-  model_name: Qwen/Qwen2.5-0.5B-Instruct   # or qwen/Qwen2.5-0.5B, etc.
-  max_new_tokens: 32

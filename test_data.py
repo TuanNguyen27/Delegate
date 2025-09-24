@@ -1,6 +1,6 @@
 # test_data.py
 from omegaconf import OmegaConf
-from src.data import gsm8k_loader
+from src.data import load_data
 
 def data_test(config_path: str):
     cfg = OmegaConf.load(config_path)
