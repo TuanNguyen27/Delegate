@@ -1,19 +1,30 @@
-import torch 
-from transformers import AutoTokenizer, AutoModelForCausalLM
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-model_id = "microsoft/Phi-4-mini-reasoning"
+model_id = "microsoft/phi-4-mini-reasoning"
 
-# Load tokenizer 
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-# Load model output 
 model = AutoModelForCausalLM.from_pretrained(
     model_id,
-    torch_dtype = torch.bfloat16,
-    device_map = "mps",
+    device_map="mps",
+    torch_dtype=torch.float16,
+    trust_remote_code=True,
 )
+tokenizer = AutoTokenizer.from_pretrained(model_id)
 
-inputs = tokenizer("what is 35 + 64", return_tensors = "pt").to("mps")
-outputs = model.generate(**inputs, max_new_tokens = 128)
+messages = [
+    {"role": "system", "content": "You are a math solver. Respond with only the final answer, no steps."},
+    {"role": "user", "content": "Solve 56 + 39 = ?"}
+]
 
-print(tokenizer.decode(outputs[0], skip_special_tokens="true"))
+prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+with torch.inference_mode():
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=128, # max tokens
+        do_sample=False
+    )
+
+result = tokenizer.decode(outputs[0], skip_special_tokens=True)
+print(result)
