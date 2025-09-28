@@ -98,7 +98,7 @@ def main():
         with torch.inference_mode():
             outputs = model.generate(
                 **inputs,
-                max_new_tokens=24,    # 🔥 reduced token limit
+                max_new_tokens=64,    # reduced token limit
                 do_sample=False,
                 temperature=0.0,
                 pad_token_id=tokenizer.eos_token_id,
