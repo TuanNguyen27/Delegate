@@ -127,15 +127,12 @@ def main():
         gold = normalize_aime(gold_raw)
         prob_num = row["Problem Number"]
 
-        # --- FIXED INDENTATION: everything below stays inside the loop ---
+        # FIXED: Proper indentation for messages creation
         messages = [
             {"role": "system", "content": "You are an expert competition mathematician."},
-            {"role": "user", "content": (
-                "Solve the following AIME problem:\n\n"
-                f"{question}\n\n"
-                "Provide only the final numeric answer in the format \\boxed{ANSWER} "
-                "(3-digit integer, with leading zeros if necessary)."
-            )},
+            {"role": "user", "content": f"Solve the following AIME problem:\n\n{question}\n\n"
+                                        "Think carefully step by step. Give your final answer in the end "
+                                        "in the format: The answer is XXX (3-digit integer)."}
         ]
 
         try:
