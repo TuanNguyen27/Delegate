@@ -138,7 +138,7 @@ def main():
 
     # Save safely
     os.makedirs(cfg.output_dir, exist_ok=True)   # ✅ ensure dir exists
-    out_file = os.path.join(cfg.output_dir, "gsm8k_baseline.csv")
+    out_file = os.path.join(cfg.output_dir, "gsm8k_SLM_baseline.csv")
     pd.DataFrame(results).to_csv(out_file, index=False)
     print(f"💾 Saved results to {out_file}")
 
