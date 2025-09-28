@@ -45,14 +45,10 @@ def load_model(model_id, device, dtype):
 # Answer extraction
 # ---------------------------
 def extract_answer(text):
-    # Prefer "The answer is 42"
     m = re.findall(r"(?:the answer is|answer is)\s*(\d+)", text, re.IGNORECASE)
     if m: return m[-1]
-
-    # Otherwise last number
     m = re.findall(r"\d+", text)
     if m: return m[-1]
-
     return ""
 
 # ---------------------------
@@ -67,7 +63,6 @@ def main():
     print(f"→ Loading {model_id} on {device} ({dtype})")
     model, tokenizer = load_model(model_id, device, dtype)
     
-    # 🔥 Show model info
     print("🧠 Model ID:", model_id)
     print("Model class:", model.__class__.__name__)
     print("Number of parameters:", sum(p.numel() for p in model.parameters()) // 1_000_000, "M")
@@ -79,53 +74,62 @@ def main():
 
     results, latencies = [], []
     correct, total = 0, 0
+    BATCH_SIZE = 8   # 🔥 adjust batch size if GPU memory allows
 
-    for ex in data:
-        q, gold = ex["question"], ex["answer"]
+    for i in range(0, len(data), BATCH_SIZE):
+        batch = data[i : i + BATCH_SIZE]
 
-        messages = [
-            {"role": "system", "content": "You are a math tutor."},
-            {"role": "user", "content": f"{q}\n\nPlease think step by step and finish with 'The answer is <number>'."}
-        ]
+        # Prepare prompts
+        batch_prompts = []
+        for ex in batch:
+            q = ex["question"]
+            messages = [
+                {"role": "system", "content": "You are a math tutor."},
+                {"role": "user", "content": f"{q}\n\nPlease think step by step and finish with 'The answer is <number>'."}
+            ]
+            prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            batch_prompts.append(prompt)
 
-        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+        # Tokenize batch
+        inputs = tokenizer(batch_prompts, return_tensors="pt", padding=True).to(model.device)
 
+        # Generate
         start = time.time()
         with torch.inference_mode():
             outputs = model.generate(
                 **inputs,
-                max_new_tokens=256,
+                max_new_tokens=24,    # 🔥 reduced token limit
                 do_sample=False,
                 temperature=0.0,
                 pad_token_id=tokenizer.eos_token_id,
             )
         latency = time.time() - start
-        latencies.append(latency)
+        latencies.append(latency / len(batch))  # avg per sample
 
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        pred = extract_answer(response)
+        decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
-        # GSM8k answers are free-text; often gold like "#### 42"
-        gold_num = re.findall(r"\d+", gold)
-        gold_num = gold_num[-1] if gold_num else ""
+        # Process results
+        for ex, resp in zip(batch, decoded):
+            gold_num = re.findall(r"\d+", ex["answer"])
+            gold_num = gold_num[-1] if gold_num else ""
+            pred = extract_answer(resp)
 
-        is_correct = (pred == gold_num)
-        if is_correct: correct += 1
-        total += 1
+            is_correct = (pred == gold_num)
+            if is_correct: correct += 1
+            total += 1
 
-        results.append({
-            "id": ex["id"],
-            "question": q,
-            "gold": gold_num,
-            "pred": pred,
-            "correct": is_correct,
-            "latency": latency,
-            "raw": response[:200] + "..." if len(response) > 200 else response,
-        })
+            results.append({
+                "id": ex["id"],
+                "question": ex["question"],
+                "gold": gold_num,
+                "pred": pred,
+                "correct": is_correct,
+                "latency": latency / len(batch),
+                "raw": resp[:200] + "..." if len(resp) > 200 else resp,
+            })
 
-        mark = "✓" if is_correct else "✗"
-        print(f"{mark} Q{ex['id']} | Pred={pred or '∅'} | Gold={gold_num} | {latency:.2f}s")
+            mark = "✓" if is_correct else "✗"
+            print(f"{mark} Q{ex['id']} | Pred={pred or '∅'} | Gold={gold_num} | {latency/len(batch):.2f}s")
 
     # Metrics
     acc = correct / total * 100 if total else 0
@@ -136,8 +140,8 @@ def main():
     print(f"Accuracy: {acc:.2f}% ({correct}/{total})")
     print(f"Avg latency: {avg_latency:.2f}s")
 
-    # Save safely
-    os.makedirs(cfg.output_dir, exist_ok=True)   # ✅ ensure dir exists
+    # Save
+    os.makedirs(cfg.output_dir, exist_ok=True)
     out_file = os.path.join(cfg.output_dir, "gsm8k_SLM_baseline.csv")
     pd.DataFrame(results).to_csv(out_file, index=False)
     print(f"💾 Saved results to {out_file}")
