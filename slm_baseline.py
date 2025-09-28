@@ -8,7 +8,7 @@ import random
 import numpy as np
 
 # ---------------------------
-# 1. Reproducibility
+# 1) Reproducibility
 # ---------------------------
 def set_seed(seed=42):
     random.seed(seed)
@@ -20,22 +20,20 @@ def set_seed(seed=42):
 set_seed(42)
 
 # ---------------------------
-# 2. Device setup
+# 2) Device setup
 # ---------------------------
 def setup_device():
-    """Pick the best available device."""
     if torch.cuda.is_available():
         return "cuda", torch.float16
     elif torch.backends.mps.is_available():
-        return "mps", torch.float32  # safer on MPS
+        return "mps", torch.float32  # safer for MPS
     else:
         return "cpu", torch.float32
 
 # ---------------------------
-# 3. Model loading with fallback
+# 3) Model loading with fallback
 # ---------------------------
 def load_model_safe(model_id, device, dtype):
-    """Try loading model; fallback to CPU if needed."""
     try:
         print(f"→ Loading model on {device} ({dtype})")
         model = AutoModelForCausalLM.from_pretrained(
@@ -60,42 +58,43 @@ def load_model_safe(model_id, device, dtype):
         return model, tokenizer, "cpu"
 
 # ---------------------------
-# 4. Answer extraction
+# 4) AIME answer normalization & extraction
 # ---------------------------
-def extract_answer(text, question=""):
-    """
-    Extract the final numeric AIME answer from model output.
-    Normalizes to 3-digit integer with leading zeros.
-    """
-    # Remove original question if echoed back
+def normalize_aime(ans: str) -> str:
+    digits = re.findall(r"\d+", ans)
+    if not digits:
+        return ""
+    return digits[-1].zfill(3)  # AIME expects 3-digit integer
+
+def extract_answer(text: str, question: str = "") -> str:
+    # Drop echoed question, if present
     if question and question in text:
         text = text.split(question)[-1]
 
-    # Look for LaTeX boxed answers first
-    match = re.findall(r"\\boxed{(\d+)}", text)
-    if match:
-        return match[-1].zfill(3)
+    # Prefer LaTeX boxed answer
+    m = re.findall(r"\\boxed{(\d+)}", text)
+    if m:
+        return normalize_aime(m[-1])
 
-    # Look for patterns like "answer is 42"
-    match = re.findall(r"(?:answer is|answer:|equals?|=)\s*(\d+)", text, re.IGNORECASE)
-    if match:
-        return match[-1].zfill(3)
+    # Common phrasings
+    m = re.findall(r"(?:answer is|answer:|equals?|=)\s*(\d+)", text, re.IGNORECASE)
+    if m:
+        return normalize_aime(m[-1])
 
-    # Look for any standalone number
-    match = re.findall(r"\b\d{1,3}\b", text)
-    if match:
-        return match[-1].zfill(3)
+    # Standalone small integers
+    m = re.findall(r"\b\d{1,3}\b", text)
+    if m:
+        return normalize_aime(m[-1])
 
-    # As fallback, take any number in the output
+    # Fallback: any number
     digits = re.findall(r"\d+", text)
     if digits:
-        return digits[-1].zfill(3)
+        return normalize_aime(digits[-1])
 
-    return ""  # no number found
-
+    return ""
 
 # ---------------------------
-# 5. Main evaluation loop
+# 5) Main evaluation loop
 # ---------------------------
 def main():
     model_id = "microsoft/phi-4-mini-reasoning"
@@ -116,7 +115,6 @@ def main():
         print(f"❌ Missing columns. Found: {list(test_df.columns)}")
         return
 
-    # Results tracking
     latencies, results = [], []
     correct, total = 0, 0
 
@@ -125,15 +123,20 @@ def main():
 
     for _, row in test_df.iterrows():
         question = str(row["Question"]).strip()
-        gold = str(row["Answer"]).strip()
+        gold_raw = str(row["Answer"]).strip()
+        gold = normalize_aime(gold_raw)
         prob_num = row["Problem Number"]
 
-    messages = [
-        {"role": "system", "content": "You are an expert competition mathematician."},
-        {"role": "user", "content": f"Solve the following AIME problem:\n\n{question}\n\n"
-                                    "Give your answer as a 3-digit integer (with leading zeros if needed). "
-                                    "Do not include any words or explanation."}
-    ]
+        # --- FIXED INDENTATION: everything below stays inside the loop ---
+        messages = [
+            {"role": "system", "content": "You are an expert competition mathematician."},
+            {"role": "user", "content": (
+                "Solve the following AIME problem:\n\n"
+                f"{question}\n\n"
+                "Provide only the final numeric answer in the format \\boxed{ANSWER} "
+                "(3-digit integer, with leading zeros if necessary)."
+            )},
+        ]
 
         try:
             prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -157,9 +160,7 @@ def main():
             response = tokenizer.decode(outputs[0], skip_special_tokens=True)
             pred = extract_answer(response, question)
 
-            gold_answer = str(row["Answer"]).strip().zfill(3)
-            pred_answer = extract_answer(response, question)
-            is_correct = (pred_answer == gold_answer)
+            is_correct = (pred == gold)
             if is_correct:
                 correct += 1
             total += 1
@@ -174,7 +175,7 @@ def main():
             })
 
             mark = "✓" if is_correct else "✗"
-            print(f"{mark} Q{prob_num} | Pred={pred} | Gold={gold} | {latency:.2f}s")
+            print(f"{mark} Q{prob_num} | Pred={pred or '∅'} | Gold={gold} | {latency:.2f}s")
 
         except Exception as e:
             print(f"✗ Q{prob_num} | Error: {e}")
@@ -183,18 +184,18 @@ def main():
                 "Gold": gold,
                 "Pred": "ERROR",
                 "Correct": False,
-                "Latency": 0,
+                "Latency": 0.0,
                 "Raw_Response": f"Error: {e}"
             })
             total += 1
-            latencies.append(0)
+            latencies.append(0.0)
 
     # ---------------------------
-    # 6. Metrics
+    # 6) Metrics
     # ---------------------------
-    avg_latency = sum(latencies) / len(latencies) if latencies else 0
+    avg_latency = (sum(latencies) / len(latencies)) if latencies else 0.0
     total_time = sum(latencies)
-    acc = (correct / total * 100) if total else 0
+    acc = (correct / total * 100.0) if total else 0.0
 
     print("\n" + "=" * 60)
     print("📊 BASELINE EVALUATION")
@@ -208,13 +209,12 @@ def main():
     print(f"Throughput: {total/total_time:.2f} samples/s" if total_time > 0 else "N/A")
 
     # ---------------------------
-    # 7. Save results
+    # 7) Save results
     # ---------------------------
     out_file = "baseline_results.csv"
     pd.DataFrame(results).to_csv(out_file, index=False)
     print(f"\n💾 Results saved to {out_file}")
 
-    # Show incorrect predictions
     wrong = [r for r in results if not r["Correct"]]
     if wrong:
         print("\n❌ Sample incorrect predictions:")
