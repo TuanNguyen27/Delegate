@@ -1,6 +1,8 @@
+# configs/gsm8k.yaml
+
 dataset: openai/gsm8k
 subset: main
 split: train 
-n_samples: 10
+n_samples: 100
 seed: 123
 output_dir: Outputs/gsm8k
