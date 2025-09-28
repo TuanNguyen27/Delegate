@@ -41,6 +41,8 @@ def load_model(model_id, device, dtype):
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     return model, tokenizer
 
+
+
 # ---------------------------
 # Answer extraction
 # ---------------------------
@@ -66,6 +68,12 @@ def main():
     model_id = "microsoft/phi-4-mini-instruct"
     print(f"→ Loading {model_id} on {device} ({dtype})")
     model, tokenizer = load_model(model_id, device, dtype)
+    
+    # 🔥 Show model info
+    print("🧠 Model ID:", model_id)
+    print("Model class:", model.__class__.__name__)
+    print("Number of parameters:", sum(p.numel() for p in model.parameters()) // 1_000_000, "M")
+    print("HF Config:", model.config)
 
     # Load dataset
     data = list(load_gsm8k(cfg))
