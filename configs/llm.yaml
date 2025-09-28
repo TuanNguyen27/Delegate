@@ -1,6 +1,6 @@
 # configs/llm.yaml
 llm:
   model_name: gpt-4o-mini # change this
-  max_tokens: 32
+  max_tokens: 64
   temperature: 0.0
   system_prompt: "Answer in 5 words or less."

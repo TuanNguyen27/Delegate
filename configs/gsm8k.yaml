@@ -3,6 +3,6 @@
 dataset: openai/gsm8k
 subset: main
 split: train 
-n_samples: 50
+n_samples: 500
 seed: 123
 output_dir: Outputs/gsm8k
