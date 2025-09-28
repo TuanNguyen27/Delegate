@@ -2,7 +2,7 @@
 
 dataset: openai/gsm8k
 subset: main
-split: test
-n_samples: 10
+split: training
+n_samples: 1700
 seed: 123
 output_dir: Outputs/gsm8k
