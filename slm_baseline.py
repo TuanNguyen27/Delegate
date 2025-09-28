@@ -63,26 +63,36 @@ def load_model_safe(model_id, device, dtype):
 # 4. Answer extraction
 # ---------------------------
 def extract_answer(text, question=""):
-    """Extract final numeric answer from model output."""
+    """
+    Extract the final numeric AIME answer from model output.
+    Normalizes to 3-digit integer with leading zeros.
+    """
+    # Remove original question if echoed back
     if question and question in text:
         text = text.split(question)[-1]
 
-    patterns = [
-        r"(?:answer is|answer:|equals?|=)\s*(-?\d+(?:\.\d+)?)",
-        r"(?:^|\n)\s*(-?\d+(?:\.\d+)?)\s*(?:$|\n)",
-        r"(-?\d+(?:\.\d+)?)(?:\s*$|\s*\n)"
-    ]
+    # Look for LaTeX boxed answers first
+    match = re.findall(r"\\boxed{(\d+)}", text)
+    if match:
+        return match[-1].zfill(3)
 
-    for pattern in patterns:
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        if matches:
-            return matches[-1]
+    # Look for patterns like "answer is 42"
+    match = re.findall(r"(?:answer is|answer:|equals?|=)\s*(\d+)", text, re.IGNORECASE)
+    if match:
+        return match[-1].zfill(3)
 
-    numbers = re.findall(r"-?\d+(?:\.\d+)?", text)
-    if numbers:
-        return numbers[-1]
+    # Look for any standalone number
+    match = re.findall(r"\b\d{1,3}\b", text)
+    if match:
+        return match[-1].zfill(3)
 
-    return text.strip()
+    # As fallback, take any number in the output
+    digits = re.findall(r"\d+", text)
+    if digits:
+        return digits[-1].zfill(3)
+
+    return ""  # no number found
+
 
 # ---------------------------
 # 5. Main evaluation loop
@@ -118,10 +128,12 @@ def main():
         gold = str(row["Answer"]).strip()
         prob_num = row["Problem Number"]
 
-        messages = [
-            {"role": "system", "content": "You are a math solver. Respond with only the final numeric answer."},
-            {"role": "user", "content": question}
-        ]
+    messages = [
+        {"role": "system", "content": "You are an expert competition mathematician."},
+        {"role": "user", "content": f"Solve the following AIME problem:\n\n{question}\n\n"
+                                    "Give your answer as a 3-digit integer (with leading zeros if needed). "
+                                    "Do not include any words or explanation."}
+    ]
 
         try:
             prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -134,7 +146,8 @@ def main():
                     **inputs,
                     max_new_tokens=128,
                     do_sample=False,
-                    pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+                    temperature=0.0,
+                    pad_token_id=tokenizer.eos_token_id,
                 )
             end = time.time()
 
@@ -144,7 +157,9 @@ def main():
             response = tokenizer.decode(outputs[0], skip_special_tokens=True)
             pred = extract_answer(response, question)
 
-            is_correct = (pred == gold)
+            gold_answer = str(row["Answer"]).strip().zfill(3)
+            pred_answer = extract_answer(response, question)
+            is_correct = (pred_answer == gold_answer)
             if is_correct:
                 correct += 1
             total += 1
