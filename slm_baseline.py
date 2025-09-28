@@ -41,8 +41,6 @@ def load_model(model_id, device, dtype):
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     return model, tokenizer
 
-
-
 # ---------------------------
 # Answer extraction
 # ---------------------------
@@ -138,7 +136,8 @@ def main():
     print(f"Accuracy: {acc:.2f}% ({correct}/{total})")
     print(f"Avg latency: {avg_latency:.2f}s")
 
-    # Save
+    # Save safely
+    os.makedirs(cfg.output_dir, exist_ok=True)   # ✅ ensure dir exists
     out_file = os.path.join(cfg.output_dir, "gsm8k_baseline.csv")
     pd.DataFrame(results).to_csv(out_file, index=False)
     print(f"💾 Saved results to {out_file}")
