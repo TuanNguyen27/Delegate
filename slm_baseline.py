@@ -1,10 +1,11 @@
-# slm_baseline_gsm8k.py
+# slm_baseline.py
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import time, re, random, numpy as np
 import pandas as pd
 from omegaconf import OmegaConf
 from src.data.gsm8k_loader import load_gsm8k
+import os
 
 # ---------------------------
 # Reproducibility
