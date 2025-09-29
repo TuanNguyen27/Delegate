@@ -1,9 +1,9 @@
-# gemma_baseline_gsm8k.py
+# gemma_baseline_math500.py
 import os, time, re, random, numpy as np, pandas as pd
 from dotenv import load_dotenv
 from google import genai
 from omegaconf import OmegaConf
-from src.data.gsm8k_loader import load_gsm8k
+from datasets import load_dataset
 
 # ---------------------------
 # Reproducibility
@@ -39,32 +39,36 @@ def main():
 
     client = genai.Client(api_key=api_key)
 
-    cfg = OmegaConf.load("configs/gsm8k.yaml")
+    # Load dataset
+    cfg = OmegaConf.load("configs/math500.yaml")
     set_seed(cfg.seed)
 
-    # Load dataset
-    data = list(load_gsm8k(cfg))
-    print(f"✓ Loaded {len(data)} GSM8k samples")
+    ds = load_dataset(cfg.dataset, split=cfg.split)
+    if cfg.get("n_samples"):
+        ds = ds.shuffle(seed=cfg.seed).select(range(cfg.n_samples))
+
+    print(f"✓ Loaded {len(ds)} MATH-500 samples")
 
     results, latencies = [], []
-    correct, total = 0, 0
 
-    for ex in data:
-        q, gold = ex["question"], ex["answer"]
+    for i, row in enumerate(ds):
+        problem, solution, answer = row["problem"], row["solution"], row["answer"]
+        subject, level, uid = row["subject"], row["level"], row["unique_id"]
 
         prompt = f"""
 You are a math tutor.
-Solve the problem step by step. 
+Solve the following problem step by step.
 At the very end, give the answer in the format: 'The answer is <number>'.
 
-Question:
-{q}
+Problem:
+{problem}
 """
 
         start = time.time()
         response = client.models.generate_content(
-            model="gemma-3-4b-it",   # 🔥 switch to 27B later if you want
-            contents=prompt
+            model="gemma-3-4b-it",  
+            contents=prompt,
+            config={"max_output_tokens": 1024} 
         )
         latency = time.time() - start
         latencies.append(latency)
@@ -72,19 +76,19 @@ Question:
         output = response.text
         pred = extract_answer(output)
 
-        # Normalize gold
-        gold_num = re.findall(r"\d+", gold)
+        gold_num = re.findall(r"\d+", str(answer))
         gold_num = gold_num[-1] if gold_num else ""
 
         is_correct = (pred == gold_num)
-        if is_correct:
-            correct += 1
-        total += 1
 
         results.append({
-            "id": ex["id"],
-            "question": q,
-            "gold": gold_num,
+            "id": i,
+            "problem": problem,
+            "solution": solution,
+            "answer": gold_num,
+            "subject": subject,
+            "level": level,
+            "unique_id": uid,
             "pred": pred,
             "correct": is_correct,
             "latency": latency,
@@ -92,20 +96,20 @@ Question:
         })
 
         mark = "✓" if is_correct else "✗"
-        print(f"{mark} Q{ex['id']} | Pred={pred or '∅'} | Gold={gold_num} | {latency:.2f}s")
+        print(f"{mark} Q{i} | Pred={pred or '∅'} | Gold={gold_num} | {latency:.2f}s")
 
     # Metrics
-    acc = correct / total * 100 if total else 0
+    acc = sum(r["correct"] for r in results) / len(results) * 100 if results else 0
     avg_latency = np.mean(latencies) if latencies else 0
 
-    print("\n📊 Gemma-3-4B-it RESULTS")
-    print(f"Samples: {total}")
-    print(f"Accuracy: {acc:.2f}% ({correct}/{total})")
+    print("\n📊 Gemma-3-4B-it on MATH-500")
+    print(f"Samples: {len(results)}")
+    print(f"Accuracy: {acc:.2f}%")
     print(f"Avg latency: {avg_latency:.2f}s")
 
     # Save
     os.makedirs(cfg.output_dir, exist_ok=True)
-    out_file = os.path.join(cfg.output_dir, "gsm8k_gemma_baseline.csv")
+    out_file = os.path.join(cfg.output_dir, "math500_gemma_baseline.csv")
     pd.DataFrame(results).to_csv(out_file, index=False)
     print(f"💾 Saved results to {out_file}")
 
