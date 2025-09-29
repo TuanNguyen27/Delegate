@@ -7,6 +7,8 @@ from agents import Agent, function_tool, Runner  # , ItemHelpers, Run, ContextWr
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from router.py import should_delegate_to_slm
+
 # ---------------------------
 # Env
 # ---------------------------
