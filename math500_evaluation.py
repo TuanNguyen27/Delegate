@@ -271,7 +271,7 @@ async def run_main_experiment(test_df: pd.DataFrame, agent_with_tools):
         )
         
         tracker.add_result(result)
-        print(f"   {'Correct' if is_correct else 'Incorrect'}: {is_correct} | Tools: {len(tracker.current_tool_calls)} | Latency: {result.latency_total:.2f}s")
+        print(f"   Result: {'CORRECT' if is_correct else 'WRONG'} | Latency: {result.latency_total:.2f}s")
     
     tracker.save_results("results_main.json")
     return tracker.get_summary()
