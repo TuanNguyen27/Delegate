@@ -164,6 +164,7 @@ agent = Agent(
     name="Math Expert Agent",
     instructions=INSTRUCTIONS,
     model="gpt-4o-mini",
+    model_settings=ModelSettings(max_tokens=2048),
     tools=[slm_help],
 )
 

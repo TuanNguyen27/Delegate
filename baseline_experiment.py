@@ -32,6 +32,7 @@ async def run_baseline_experiment(test_df: pd.DataFrame):
             "or use \\boxed{<value>} format."
         ),
         model="gpt-4o-mini",
+        model_settings=ModelSettings(max_tokens=2048),
         tools=[]
     )
     
