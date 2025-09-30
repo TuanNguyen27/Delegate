@@ -1,287 +1,155 @@
-# router_agent.py
-import os, re, time, asyncio, torch, json
-from dotenv import load_dotenv
+"""
+Router agent: GPT-4o-mini with SLM tool routing
+"""
+import re
+import time
+from agents import Agent, ModelSettings, function_tool
+from slm import get_slm_response
+from utils import MetricsTracker
 
-# OpenAI Agents SDK
-from agents import Agent, function_tool, Runner, ModelSettings
+# Get the global tracker from router_experiment
+tracker = None
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-# ---------------------------
-# Env
-# ---------------------------
-load_dotenv()  # expects OPENAI_API_KEY for the Agents SDK
-
-# ---------------------------
-# SLM (Qwen) lazy loader
-# ---------------------------
-_SLM, _TOK = None, None
-_SLM_ID = "Qwen/Qwen2.5-Math-1.5B-Instruct"
-
-def _device_dtype():
-    if torch.cuda.is_available():
-        return "cuda", torch.float16
-    elif torch.backends.mps.is_available():
-        return "mps", torch.float32
-    return "cpu", torch.float32
-
-def _lazy_load_slm():
-    global _SLM, _TOK
-    if _SLM is None or _TOK is None:
-        device, dtype = _device_dtype()
-        _SLM = AutoModelForCausalLM.from_pretrained(
-            _SLM_ID,
-            device_map="auto" if device != "cpu" else None,
-            dtype=dtype,
-            trust_remote_code=True,
-        )
-        _TOK = AutoTokenizer.from_pretrained(_SLM_ID)
-        _TOK.padding_side = "left"  # safer for batched autoregressive decoding
-    return _SLM, _TOK
-
-# ---------------------------
-# Utils
-# ---------------------------
-_BOXED = re.compile(r"\\boxed\{([^}]+)\}")
-_LAST_NUM = re.compile(r"(?<!\d)(-?\d+(?:/\d+)?)(?!\d)")
-
-def extract_boxed_or_lastnum(text: str) -> str:
-    m = _BOXED.findall(text)
-    if m:
-        return m[-1].strip()
-    m = _LAST_NUM.findall(text)
-    return m[-1] if m else ""
-
-def extract_answer_from_slm(text: str) -> str:
-    """Extract answer from SLM output, prioritizing \boxed{} format"""
-    # First try \boxed{} format
-    boxed = re.findall(r"\\boxed\{([^}]+)\}", text)
-    if boxed:
-        answer = boxed[-1].strip()
-        # Extract numbers from the boxed content
-        nums = re.findall(r"-?\d+(?:\.\d+)?", answer)
-        return nums[0] if nums else answer
+class ToolCallTracker:
+    """Tracks tool calls to prevent duplicate calculations"""
+    def __init__(self, metrics_tracker=None):
+        self.call_history = {}
+        self.metrics_tracker = metrics_tracker
     
-    # Then try "The answer is: X" pattern
-    m = re.search(r"[Tt]he answer is:?\s*([^\n.]+)", text)
-    if m:
-        answer = m.group(1).strip()
-        nums = re.findall(r"-?\d+(?:\.\d+)?", answer)
-        return nums[-1] if nums else answer
+    def create_slm_tool(self):
+        @function_tool
+        def slm_help(question: str) -> str:
+            """Solve mathematical calculation. Returns definitive answer."""
+            # Track timing if metrics tracker available
+            if self.metrics_tracker:
+                t_start = time.time()
+            
+            # Normalize the question for comparison
+            normalized = question.strip().lower()
+            
+            # Check if we've already answered this exact question
+            if normalized in self.call_history:
+                previous_answer = self.call_history[normalized]
+                # Log the duplicate call
+                if self.metrics_tracker:
+                    self.metrics_tracker.add_tool_call(
+                        tool_name="slm_help",
+                        input_text=question,
+                        output_text=f"CACHED: {previous_answer}",
+                        latency=0.0,
+                        is_duplicate=True
+                    )
+                return f"ALREADY CALCULATED: {previous_answer} (using cached result - do not call again)"
+            
+            # Get new answer from SLM
+            try:
+                response = get_slm_response(question)
+                
+                # Extract the boxed answer for clearer response
+                match = re.search(r'\\boxed\{([^}]+)\}', response)
+                if match:
+                    answer = match.group(1)
+                    formatted_response = f"CALCULATION COMPLETE: The answer to '{question}' is {answer}."
+                else:
+                    # If no boxed answer, still mark as complete
+                    formatted_response = f"CALCULATION COMPLETE: {response}"
+                
+                # Cache the formatted response
+                self.call_history[normalized] = formatted_response
+                
+                # Track metrics if available
+                if self.metrics_tracker:
+                    t_end = time.time()
+                    latency = t_end - t_start
+                    self.metrics_tracker.add_tool_call(
+                        tool_name="slm_help",
+                        input_text=question,
+                        output_text=formatted_response,
+                        latency=latency,
+                        is_duplicate=False
+                    )
+                
+                return formatted_response
+                
+            except Exception as e:
+                error_msg = f"CALCULATION ERROR: Unable to process '{question}'. Error: {str(e)}"
+                if self.metrics_tracker:
+                    t_end = time.time()
+                    latency = t_end - t_start
+                    self.metrics_tracker.add_tool_call(
+                        tool_name="slm_help",
+                        input_text=question,
+                        output_text=error_msg,
+                        latency=latency,
+                        is_duplicate=False
+                    )
+                return error_msg
+        
+        return slm_help
+
+# Strong, explicit instructions with examples
+ROUTER_INSTRUCTIONS = """You are a math problem solver that uses a specialized calculation tool for ALL arithmetic operations.
+
+CRITICAL RULES:
+1. Use slm_help() for EVERY calculation, no matter how simple
+2. NEVER perform mental math - always use the tool
+3. Call the tool EXACTLY ONCE per unique calculation
+4. The tool returns definitive answers - ALWAYS accept them
+5. If you see "ALREADY CALCULATED", use that cached result immediately
+6. If you see "CALCULATION COMPLETE", that's the final answer for that calculation
+
+RESPONSE FORMAT:
+- The tool will return one of:
+  * "CALCULATION COMPLETE: The answer to 'X' is Y" - This is a new calculation
+  * "ALREADY CALCULATED: ..." - This means you already asked this, use the cached answer
+  * "CALCULATION ERROR: ..." - Something went wrong, try rephrasing
+
+WORKFLOW:
+1. Break down the problem into individual calculations
+2. Call slm_help() for each calculation ONCE
+3. Use the returned answers to continue
+4. NEVER re-calculate something you've already asked
+
+Example:
+User: What is (520 + 650) * 2?
+You: I'll solve this step by step.
+[Call slm_help("What is 520 + 650?")]
+Tool: "CALCULATION COMPLETE: The answer to '520 + 650' is 1170."
+You: Now I'll multiply by 2.
+[Call slm_help("What is 1170 * 2?")]
+Tool: "CALCULATION COMPLETE: The answer to '1170 * 2' is 2340."
+You: The final answer is 2340.
+
+NEVER DO THIS:
+[Call slm_help("What is 520 + 650?")]
+[Call slm_help("What is 520 + 650?")] <- WRONG! Don't repeat calculations!
+
+Remember: Trust the tool completely. One call per calculation. Move forward with the answer."""
+
+def create_router_agent(metrics_tracker=None):
+    """Create a router agent with loop prevention"""
+    global tracker
+    tracker = metrics_tracker
     
-    # Fallback: last number in entire text
-    nums = re.findall(r"-?\d+(?:\.\d+)?", text)
-    return nums[-1] if nums else ""
+    # Create tool with state tracking
+    tool_tracker = ToolCallTracker(metrics_tracker)
+    slm_help_tool = tool_tracker.create_slm_tool()
+    
+    agent = Agent(
+        instructions=ROUTER_INSTRUCTIONS,
+        model="gpt-4o-mini",
+        model_settings=ModelSettings(
+            max_tokens=2048,
+            temperature=0.1,  # Lower temperature for more consistent behavior
+            parallel_tool_calls=False  # Prevent simultaneous calls
+        ),
+        tools=[slm_help_tool]
+    )
+    
+    # Attach the tracker to the agent for access during runs
+    agent.tool_tracker = tool_tracker
+    
+    return agent
 
-# ---------------------------
-# Tool: call SLM for help
-# ---------------------------
-def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str:
-    """
-    Solve a high-school math problem with the local Small Language Model (SLM).
-
-    Args:
-      question (str): The problem text.
-      mode (str): "cot" for step-by-step; "direct" for concise final answer.
-      max_new_tokens (int): Maximum generated tokens.
-
-    Returns:
-      str: JSON string with {"answer": "<value>", "reasoning": "<model_output>"}
-    """
-    try:
-        model, tok = _lazy_load_slm()
-
-        sys = (
-            "You are a math calculation assistant. "
-            "Solve the problem step by step. "
-            "At the very end, you MUST write 'The answer is: X' where X is the final numerical answer. "
-            "Do not write anything after 'The answer is: X'."
-        )
-        messages = [
-            {"role": "system", "content": sys},
-            {"role": "user", "content": question},
-        ]
-        prompt = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        inputs = tok([prompt], return_tensors="pt").to(model.device)
-
-        t0 = time.time()
-        with torch.inference_mode():
-            out = model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=False,
-                pad_token_id=tok.eos_token_id,
-            )
-        gen = tok.batch_decode(out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
-        ans = extract_answer_from_slm(gen)
-        _lat = time.time() - t0
-
-        # Debug logging - BEFORE the return
-        print(f"[SLM DEBUG] Output: {gen[:100]}...")
-        print(f"[SLM DEBUG] Extracted answer: {ans}")
-
-        # Return properly formatted JSON string
-        result_json = json.dumps({
-            "answer": ans,
-            "latency_sec": round(_lat, 3),
-            "reasoning": gen
-        })
-        
-        # Log to tracker if it exists (for evaluation)
-        try:
-            from router_experiment import tracker
-            tracker.log_tool_call(question, result_json, _lat)
-        except ImportError:
-            pass  # Tracker not imported, skip logging
-        
-        return result_json
-        
-    except Exception as e:
-        error_json = json.dumps({
-            "error": str(e),
-            "answer": "",
-            "reasoning": ""
-        })
-        
-        # Log error to tracker if it exists
-        try:
-            from router_experiment import tracker
-            tracker.log_tool_call(question, error_json, 0.0)
-        except ImportError:
-            pass
-        
-        return error_json
-
-# Wrap the implementation for the Agent SDK
-@function_tool
-def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 512) -> str:
-    """
-    Solve a high-school math problem with the local Small Language Model (SLM).
-    Returns the complete reasoning output (not just the extracted answer).
-    """
-    print(f"[TOOL CALLED] LLM invoked slm_help with question: {question[:60]}...")
-
-    try:
-        model, tok = _lazy_load_slm()
-
-        sys = (
-            "You are a math calculation assistant. "
-            "Solve the problem step by step. "
-            "Put your final answer in \\boxed{} format at the end."
-        )
-        messages = [
-            {"role": "system", "content": sys},
-            {"role": "user", "content": question},
-        ]
-        prompt = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        inputs = tok([prompt], return_tensors="pt").to(model.device)
-
-        t0 = time.time()
-        with torch.inference_mode():
-            out = model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=False,
-                pad_token_id=tok.eos_token_id,
-            )
-        gen = tok.batch_decode(
-            out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True
-        )[0]
-        latency = time.time() - t0
-
-        # Debug
-        print(f"[SLM DEBUG] Latency: {latency:.3f}s")
-        print(f"[SLM DEBUG] Output: {gen[:100]}...")
-
-        # Log if tracker exists
-        try:
-            from router_experiment import tracker
-            tracker.log_tool_call(
-                question,
-                json.dumps({"reasoning": gen, "latency_sec": round(latency, 3)}),
-                latency,
-            )
-        except ImportError:
-            pass
-
-        # Return just the reasoning text — agent will see this
-        return gen
-
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-
-# ---------------------------
-# Agent (LLM controller)
-# ---------------------------
-INSTRUCTIONS = (
-    "You are an expert at solving high school competition math problems (MATH dataset level). "
-    "IMPORTANT: You MUST use the `slm_help` tool for ANY computational step including:\n"
-    "- ALL arithmetic (addition, subtraction, multiplication, division)\n"
-    "- Solving equations (linear, quadratic, polynomial)\n"
-    "- Algebraic simplifications and expansions\n"
-    "- Modular arithmetic and number theory calculations\n"
-    "- ANY calculation with numbers\n\n"
-    "Do NOT try to calculate these yourself. Always call slm_help for computational steps.\n\n"
-    "Your workflow:\n"
-    "1. Read and understand the problem\n"
-    "2. Plan your solution approach\n"
-    "3. For ANY calculation, call slm_help ONCE with the specific computation\n"
-    "4. Extract the answer from the tool's \\boxed{} output\n"
-    "5. Use that result to continue your reasoning\n"
-    "6. When you have the final answer, provide it in \\boxed{} format and STOP\n\n"
-    "CRITICAL RULES:\n"
-    "- When slm_help returns an answer in \\boxed{}, extract that value and use it immediately\n"
-    "- Do NOT call slm_help again for the same calculation\n"
-    "- Do NOT decompose a calculation that slm_help can handle into multiple sub-calls\n"
-    "- After getting all needed values, provide your final answer in \\boxed{} format and STOP\n\n"
-    "Example: If you need to compute 15 × 7, call slm_help('What is 15 times 7?') ONCE.\n"
-    "Example: If slm_help returns '\\boxed{105}', extract 105 and use it in your solution.\n\n"
-    "Always show your reasoning and provide the final answer in \\boxed{} format.\n"
-)
-
-agent = Agent(
-    name="Math Expert Agent",
-    instructions=INSTRUCTIONS,
-    model="gpt-4o-mini",
-    model_settings=ModelSettings(max_tokens=2048),
-    tools=[slm_help],
-)
-
-# ---------------------------
-# Run Agent
-# ---------------------------
-async def run_agent(question: str):
-    """
-    Run the LLM agent, which can delegate to SLM when needed.
-    """
-    print(f"[AGENT] Processing question with LLM...")
-    result = await Runner.run(agent, question)
-    return result.final_output
-
-# ---------------------------
-# Test
-# ---------------------------
-async def main():
-    qs = [
-        "If 3x + 5 = 20, what is x?",
-        "A triangle has sides 5, 12, and 13. What is its area?",
-        "The sum of the first 50 positive integers divisible by 3 equals what?"
-    ]
-
-    for q in qs:
-        print(f"\nQ: {q}")
-        out = await run_agent(q)
-        print(f"Ans: {out}")
-
-if __name__ == "__main__":
-    # Check if we're in a notebook environment
-    try:
-        # If in notebook, use await directly instead of asyncio.run()
-        get_ipython()  # This will raise NameError if not in IPython/Jupyter
-        import nest_asyncio
-        nest_asyncio.apply()
-        asyncio.run(main())
-    except NameError:
-        # Not in notebook, use asyncio.run() normally
-        asyncio.run(main())
+# Create default agent instance
+agent = create_router_agent()
