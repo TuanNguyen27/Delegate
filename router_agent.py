@@ -148,23 +148,29 @@ def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str
 # Agent (LLM controller)
 # ---------------------------
 INSTRUCTIONS = (
-    "You are an expert at solving high school competition math problems (MATH dataset level). "
-    "Break down complex problems into steps. When you encounter:\n"
-    "- Arithmetic computations (e.g., 127 × 89, 7^2023 mod 1000)\n"
-    "- Algebraic simplifications (e.g., expand (x+2)(x-3), factor x^2-5x+6)\n"
-    "- Solving equations (e.g., 3x^2 + 5x - 2 = 0)\n"
-    "- Number theory calculations (e.g., gcd, lcm, modular arithmetic)\n"
-    "Use the `slm_help` tool to compute these efficiently and accurately.\n\n"
-    "For conceptual reasoning, geometric proofs, counting arguments, or strategic problem-solving, "
-    "work through them yourself step-by-step.\n\n"
-    "Always show your reasoning and provide the final answer in \\boxed{} format."
+    "You are an expert at solving high school competition math problems. "
+    "IMPORTANT: You MUST use the `slm_help` tool for ANY computational step including:\n"
+    "- ALL arithmetic (addition, subtraction, multiplication, division)\n"
+    "- Solving equations (linear, quadratic, polynomial)\n"
+    "- Algebraic simplifications and expansions\n"
+    "- Modular arithmetic and number theory calculations\n"
+    "- ANY calculation with numbers\n\n"
+    "Do NOT try to calculate these yourself. Always call slm_help for computational steps.\n"
+    "You should focus on:\n"
+    "- Understanding the problem\n"
+    "- Planning the solution strategy\n"
+    "- Calling slm_help for calculations\n"
+    "- Interpreting results and providing final answer\n\n"
+    "Always provide your final answer in \\boxed{} format."
 )
 
 agent = Agent(
     name="Math Expert Agent",
     instructions=INSTRUCTIONS,
     model="gpt-4o-mini",
-    model_settings=ModelSettings(max_tokens=2048),
+    model_settings=ModelSettings(
+        tokens=2048,
+        tool_choice="required"),
     tools=[slm_help],
 )
 
