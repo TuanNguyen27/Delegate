@@ -1,13 +1,11 @@
 # router_agent.py
-import os, re, time, asyncio, torch
+import os, re, time, asyncio, torch, json
 from dotenv import load_dotenv
 
-# Your Agents SDK (as in your snippet)
-from agents import Agent, function_tool, Runner  # , ItemHelpers, Run, ContextWrapper  # if you use them
+# OpenAI Agents SDK
+from agents import Agent, function_tool, Runner
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
-from router.py import should_delegate_to_slm
 
 # ---------------------------
 # Env
@@ -68,37 +66,48 @@ def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str
       max_new_tokens (int): Maximum generated tokens.
 
     Returns:
-      str: JSON-like string with {"answer": "<value>", "reasoning": "<model_output>"}
+      str: JSON string with {"answer": "<value>", "reasoning": "<model_output>"}
     """
-    model, tok = _lazy_load_slm()
+    try:
+        model, tok = _lazy_load_slm()
 
-    sys = (
-        "Please reason step by step and put your final answer within \\boxed{}."
-        if mode == "cot"
-        else "Answer concisely; only provide the final answer within \\boxed{}."
-    )
-    messages = [
-        {"role": "system", "content": sys},
-        {"role": "user", "content": question},
-    ]
-    prompt = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    inputs = tok([prompt], return_tensors="pt").to(model.device)
-
-    t0 = time.time()
-    with torch.inference_mode():
-        out = model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-            temperature=0.0,
-            pad_token_id=tok.eos_token_id,
+        sys = (
+            "Please reason step by step and put your final answer within \\boxed{}."
+            if mode == "cot"
+            else "Answer concisely; only provide the final answer within \\boxed{}."
         )
-    gen = tok.batch_decode(out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
-    ans = extract_boxed_or_lastnum(gen)
-    _lat = time.time() - t0
+        messages = [
+            {"role": "system", "content": sys},
+            {"role": "user", "content": question},
+        ]
+        prompt = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = tok([prompt], return_tensors="pt").to(model.device)
 
-    # Keep it string-y for the Agents SDK tool schema
-    return f'{{"answer":"{ans}","latency_sec":{_lat:.3f},"reasoning":{gen!r}}}'
+        t0 = time.time()
+        with torch.inference_mode():
+            out = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+                temperature=0.0,
+                pad_token_id=tok.eos_token_id,
+            )
+        gen = tok.batch_decode(out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
+        ans = extract_boxed_or_lastnum(gen)
+        _lat = time.time() - t0
+
+        # Return properly formatted JSON string
+        return json.dumps({
+            "answer": ans,
+            "latency_sec": round(_lat, 3),
+            "reasoning": gen
+        })
+    except Exception as e:
+        return json.dumps({
+            "error": str(e),
+            "answer": "",
+            "reasoning": ""
+        })
 
 # ---------------------------
 # Agent (LLM controller)
@@ -111,8 +120,8 @@ INSTRUCTIONS = (
 
 agent = Agent(
     name="Math Expert Agent",
-    model="gpt-4o-mini",        # <- ensure your Agents SDK accepts this param; otherwise set globally
     instructions=INSTRUCTIONS,
+    model="gpt-4o-mini"
     tools=[slm_help],
 )
 
@@ -148,11 +157,10 @@ async def route_and_run(question: str, force: str | None = None):
         return slm_help(question=question, mode="cot", max_new_tokens=256)
     else:
         # Let the LLM decide (it can still call slm_help if it wants)
-        runner = Runner(agent)
-        # Your SDK might support streaming; here we ask for a simple final text
-        result = await runner.run(question)
-        # Normalize to string
-        return getattr(result, "output_text", str(result))
+        # Use Runner.run as a class method per the SDK docs
+        result = await Runner.run(agent, question)
+        # Access final_output attribute per SDK API
+        return result.final_output
 
 # ---------------------------
 # Test
@@ -165,9 +173,9 @@ async def main():
     ]
 
     for q in qs:
+        print(f"\nQ: {q}")
         out = await route_and_run(q)
-        print("\nQ:", q)
-        print("Ans:", out)
+        print(f"Ans: {out}")
 
 if __name__ == "__main__":
     asyncio.run(main())
