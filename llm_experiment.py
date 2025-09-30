@@ -52,7 +52,7 @@ Problem:
 
         t_start = time.time()
         resp = await client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=512,
             temperature=0
