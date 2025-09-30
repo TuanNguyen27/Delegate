@@ -1,9 +1,12 @@
+# router_experiment.py
 """
 Router experiment: GPT-4o-mini with SLM tool routing
+Usage: python router_experiment.py [--sample N]
 """
 import time
 import pandas as pd
 import asyncio
+import argparse
 from agents import Runner
 
 from utils import (
@@ -16,178 +19,93 @@ from utils import (
     print_summary
 )
 
-# ---------------------------
-# Custom Runner with Loop Detection
-# ---------------------------
-class LoopPreventingRunner:
-    """Runner wrapper that monitors for excessive duplicate calls"""
-    
-    @staticmethod
-    async def run(agent, question, max_turns=10, max_duplicate_warnings=3):
-        """
-        Run agent with loop detection and early termination
-        
-        Args:
-            agent: The agent to run
-            question: The question to solve
-            max_turns: Maximum turns allowed
-            max_duplicate_warnings: Number of duplicate calls before forcing termination
-        """
-        duplicate_count = 0
-        last_call = None
-        
-        # Monitor the tool tracker if available
-        if hasattr(agent, 'tool_tracker'):
-            initial_calls = len(agent.tool_tracker.call_history)
-        
-        try:
-            result = await Runner.run(agent, question, max_turns=max_turns)
-            
-            # Check if we had excessive duplicates
-            if hasattr(agent, 'tool_tracker'):
-                # Count how many times each question was asked
-                call_counts = {}
-                for normalized_q in agent.tool_tracker.call_history.keys():
-                    # This counts unique questions, not repeat calls
-                    # For repeat detection, we'd need to track in the tool itself
-                    pass
-            
-            return result
-            
-        except Exception as e:
-            if "MaxTurnsExceeded" in str(e):
-                print(f"   WARNING: Max turns exceeded - likely due to repeated calculations")
-                # Return what we have so far
-                return type('Result', (), {
-                    'final_output': "Unable to complete due to repeated calculations",
-                    'error': str(e)
-                })()
-            raise
+# Create global tracker
+tracker = MetricsTracker()
 
 # ---------------------------
 # Experiment Runner
 # ---------------------------
-async def run_router_experiment(test_df: pd.DataFrame, sample_size=None):
-    """
-    Run router experiment with GPT-4o-mini + SLM tool
+async def run_router_experiment(test_df: pd.DataFrame):
+    """Run router experiment with GPT-4o-mini + SLM tool"""
     
-    Args:
-        test_df: DataFrame with test problems
-        sample_size: Optional number of problems to test (for debugging)
-    """
-    
-    # Create global tracker for metrics
-    global_tracker = MetricsTracker()
-    
-    # Import and create agent with metrics tracking
-    from router_agent import create_router_agent
-    agent = create_router_agent(global_tracker)
+    # Import agent with tools
+    from router_agent import agent
     
     print("\n" + "="*60)
     print("ROUTER EXPERIMENT: GPT-4o-mini + Qwen SLM Tool")
-    print("(With Loop Prevention)")
     print("="*60)
-    
-    # Optionally limit sample size for testing
-    if sample_size:
-        test_df = test_df.head(sample_size)
-        print(f"Running on sample of {sample_size} problems")
+    print(f"Running on {len(test_df)} problems")
     
     results = []
+    failed_problems = []
     
     for idx, row in test_df.iterrows():
         print(f"\n[{idx+1}/{len(test_df)}] Processing {row['subject']}...")
         
-        # Reset tracker for this problem
-        global_tracker.start_problem()
-        
-        # Clear the tool's call history for each new problem
-        if hasattr(agent, 'tool_tracker'):
-            agent.tool_tracker.call_history.clear()
-        
-        t_start = time.time()
+        tracker.start_problem()
         
         try:
-            # Use our custom runner with loop prevention
-            result = await LoopPreventingRunner.run(
-                agent, 
-                row["problem"], 
-                max_turns=15,  # Increased slightly for complex multi-step problems
-                max_duplicate_warnings=3
-            )
+            t_start = time.time()
+            result = await Runner.run(agent, row["problem"], max_turns=15)
+            t_end = time.time()
             
             prediction = result.final_output
+            is_correct = check_answer(prediction, row["answer"])
+            
+            latency_total = t_end - t_start
+            latency_llm = latency_total - tracker.current_slm_time
+            
+            problem_result = ProblemResult(
+                problem_id=row.get("problem_id", f"prob_{idx}"),
+                subject=row["subject"],
+                difficulty=row.get("level", "unknown"),
+                question=row["problem"],
+                ground_truth=str(row["answer"]),
+                prediction=prediction,
+                is_correct=is_correct,
+                latency_total=latency_total,
+                latency_llm=latency_llm,
+                latency_slm=tracker.current_slm_time,
+                tool_calls=len(tracker.current_tool_calls),
+                tool_call_details=tracker.current_tool_calls
+            )
+            
+            results.append(problem_result)
+            
+            # Debug output
+            extracted = extract_answer(prediction)
+            print(f"   Result: {'CORRECT' if is_correct else 'WRONG'}")
+            print(f"   Tool calls: {len(tracker.current_tool_calls)}")
+            print(f"   Extracted: {extracted}")
+            print(f"   Ground truth: {row['answer']}")
+            print(f"   Latency: {latency_total:.2f}s (LLM: {latency_llm:.2f}s, SLM: {tracker.current_slm_time:.2f}s)")
             
         except Exception as e:
             print(f"   ERROR: {str(e)}")
-            prediction = f"Error: {str(e)}"
-        
-        t_end = time.time()
-        
-        # Check answer
-        is_correct = check_answer(prediction, row["answer"])
-        
-        # Calculate latencies
-        latency_total = t_end - t_start
-        latency_slm = global_tracker.current_slm_time
-        latency_llm = latency_total - latency_slm
-        
-        # Count unique vs duplicate calls
-        unique_calls = len([c for c in global_tracker.current_tool_calls if not c.get('is_duplicate', False)])
-        duplicate_calls = len([c for c in global_tracker.current_tool_calls if c.get('is_duplicate', False)])
-        
-        problem_result = ProblemResult(
-            problem_id=row.get("problem_id", f"prob_{idx}"),
-            subject=row["subject"],
-            difficulty=row.get("level", "unknown"),
-            question=row["problem"],
-            ground_truth=str(row["answer"]),
-            prediction=prediction,
-            is_correct=is_correct,
-            latency_total=latency_total,
-            latency_llm=latency_llm,
-            latency_slm=latency_slm,
-            tool_calls=len(global_tracker.current_tool_calls),
-            tool_call_details=global_tracker.current_tool_calls
-        )
-        
-        results.append(problem_result)
-        
-        # Enhanced debug output
-        extracted = extract_answer(prediction)
-        print(f"   Result: {'✓ CORRECT' if is_correct else '✗ WRONG'}")
-        print(f"   Tool calls: {len(global_tracker.current_tool_calls)} total ({unique_calls} unique, {duplicate_calls} duplicates)")
-        if duplicate_calls > 0:
-            print(f"   ⚠️  Had {duplicate_calls} duplicate calculations!")
-        print(f"   Extracted: {extracted}")
-        print(f"   Ground truth: {row['answer']}")
-        print(f"   Latency: {latency_total:.2f}s (LLM: {latency_llm:.2f}s, SLM: {latency_slm:.2f}s)")
-        
-        # Show which calculations were repeated
-        if duplicate_calls > 0 and global_tracker.current_tool_calls:
-            seen = set()
-            for call in global_tracker.current_tool_calls:
-                if call.get('is_duplicate'):
-                    input_text = call.get('input_text', '')
-                    if input_text not in seen:
-                        print(f"      Repeated: '{input_text}'")
-                        seen.add(input_text)
+            failed_problems.append({
+                "index": idx,
+                "subject": row["subject"],
+                "error": str(e)
+            })
+            # Still add a result with error
+            problem_result = ProblemResult(
+                problem_id=row.get("problem_id", f"prob_{idx}"),
+                subject=row["subject"],
+                difficulty=row.get("level", "unknown"),
+                question=row["problem"],
+                ground_truth=str(row["answer"]),
+                prediction=f"ERROR: {str(e)}",
+                is_correct=False,
+                latency_total=0.0,
+                latency_llm=0.0,
+                latency_slm=0.0,
+                tool_calls=0,
+                tool_call_details=[]
+            )
+            results.append(problem_result)
     
     # Calculate and print summary
     summary = calculate_summary(results)
-    
-    # Add additional metrics about duplicates
-    total_calls = sum(len(r.tool_call_details) for r in results)
-    duplicate_calls_total = sum(
-        len([c for c in r.tool_call_details if c.get('is_duplicate', False)])
-        for r in results
-    )
-    
-    summary['duplicate_rate'] = duplicate_calls_total / total_calls if total_calls > 0 else 0
-    summary['problems_with_duplicates'] = sum(
-        1 for r in results 
-        if any(c.get('is_duplicate', False) for c in r.tool_call_details)
-    )
     
     # Add subject breakdown
     df_results = pd.DataFrame([r.to_dict() for r in results])
@@ -197,20 +115,17 @@ async def run_router_experiment(test_df: pd.DataFrame, sample_size=None):
         "tool_calls": ["mean", "sum"]
     }).round(3)
     
-    print_summary(summary, "Router (with Loop Prevention)")
-    print(f"\nDuplicate Statistics:")
-    print(f"  Total duplicate calls: {duplicate_calls_total}/{total_calls} ({summary['duplicate_rate']:.1%})")
-    print(f"  Problems with duplicates: {summary['problems_with_duplicates']}/{len(results)}")
-    
+    print_summary(summary, "Router")
     print("\nSubject breakdown:")
     print(subject_stats)
     
-    # Save results with timestamp
-    from datetime import datetime
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"results_router_{timestamp}.json"
-    save_results(results, filename, summary)
-    print(f"\nResults saved to {filename}")
+    if failed_problems:
+        print(f"\n⚠️  {len(failed_problems)} problems failed:")
+        for fail in failed_problems:
+            print(f"   [{fail['index']}] {fail['subject']}: {fail['error'][:100]}")
+    
+    # Save results
+    save_results(results, "results_router.json", summary)
     
     return summary
 
@@ -218,33 +133,35 @@ async def run_router_experiment(test_df: pd.DataFrame, sample_size=None):
 # Main
 # ---------------------------
 async def main():
-    """Main entry point"""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Run router experiment with loop prevention")
-    parser.add_argument("--sample", type=int, help="Run on a sample of N problems for testing")
-    parser.add_argument("--csv", default="math500/test.csv", help="Path to test CSV file")
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Run router experiment on MATH500')
+    parser.add_argument('--sample', type=int, default=None,
+                       help='Number of problems to sample (default: all)')
+    parser.add_argument('--random', action='store_true',
+                       help='Random sample instead of first N')
     args = parser.parse_args()
     
     # Load test data
-    try:
-        test_df = pd.read_csv(args.csv)
-        print(f"Loaded {len(test_df)} problems from {args.csv}")
-    except FileNotFoundError:
-        print(f"Error: Could not find {args.csv}")
-        print("Please ensure the CSV file exists in the specified path")
-        return
+    test_df = pd.read_csv("math500/test.csv")
+    print(f"Loaded {len(test_df)} problems from math500/test.csv")
     
     # Check required columns
     required_cols = ["problem", "answer", "subject"]
-    missing_cols = [col for col in required_cols if col not in test_df.columns]
-    if missing_cols:
-        print(f"Error: CSV is missing required columns: {missing_cols}")
+    if not all(col in test_df.columns for col in required_cols):
+        print(f"CSV must contain columns: {required_cols}")
         print(f"Available columns: {list(test_df.columns)}")
         return
     
+    # Sample if requested
+    if args.sample:
+        if args.random:
+            test_df = test_df.sample(n=args.sample, random_state=42)
+        else:
+            test_df = test_df.head(args.sample)
+        print(f"Sampled {len(test_df)} problems")
+    
     # Run router experiment
-    await run_router_experiment(test_df, sample_size=args.sample)
+    await run_router_experiment(test_df)
 
 if __name__ == "__main__":
     asyncio.run(main())

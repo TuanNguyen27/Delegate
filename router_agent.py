@@ -1,155 +1,164 @@
-"""
-Router agent: GPT-4o-mini with SLM tool routing
-"""
-import re
-import time
-from agents import Agent, ModelSettings, function_tool
-from slm import get_slm_response
-from utils import MetricsTracker
+# router_agent.py
+import os, re, time, asyncio, torch
+from dotenv import load_dotenv
 
-# Get the global tracker from router_experiment
-tracker = None
+from agents import Agent, function_tool, Runner, ModelSettings
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-class ToolCallTracker:
-    """Tracks tool calls to prevent duplicate calculations"""
-    def __init__(self, metrics_tracker=None):
-        self.call_history = {}
-        self.metrics_tracker = metrics_tracker
+load_dotenv()
+
+# ---------------------------
+# SLM (Qwen) lazy loader
+# ---------------------------
+_SLM, _TOK = None, None
+_SLM_ID = "Qwen/Qwen2.5-Math-1.5B-Instruct"
+
+def _device_dtype():
+    if torch.cuda.is_available():
+        return "cuda", torch.float16
+    elif torch.backends.mps.is_available():
+        return "mps", torch.float32
+    return "cpu", torch.float32
+
+def _lazy_load_slm():
+    global _SLM, _TOK
+    if _SLM is None or _TOK is None:
+        device, dtype = _device_dtype()
+        _SLM = AutoModelForCausalLM.from_pretrained(
+            _SLM_ID,
+            device_map="auto" if device != "cpu" else None,
+            dtype=dtype,
+            trust_remote_code=True,
+        )
+        _TOK = AutoTokenizer.from_pretrained(_SLM_ID)
+        _TOK.padding_side = "left"
+    return _SLM, _TOK
+
+# ---------------------------
+# Tool: call SLM for help
+# ---------------------------
+@function_tool
+def slm_help(question: str) -> str:
+    """
+    Solve a mathematical calculation using a specialized math model.
+    Returns a definitive answer that should be trusted immediately.
     
-    def create_slm_tool(self):
-        @function_tool
-        def slm_help(question: str) -> str:
-            """Solve mathematical calculation. Returns definitive answer."""
-            # Track timing if metrics tracker available
-            if self.metrics_tracker:
-                t_start = time.time()
-            
-            # Normalize the question for comparison
-            normalized = question.strip().lower()
-            
-            # Check if we've already answered this exact question
-            if normalized in self.call_history:
-                previous_answer = self.call_history[normalized]
-                # Log the duplicate call
-                if self.metrics_tracker:
-                    self.metrics_tracker.add_tool_call(
-                        tool_name="slm_help",
-                        input_text=question,
-                        output_text=f"CACHED: {previous_answer}",
-                        latency=0.0,
-                        is_duplicate=True
-                    )
-                return f"ALREADY CALCULATED: {previous_answer} (using cached result - do not call again)"
-            
-            # Get new answer from SLM
-            try:
-                response = get_slm_response(question)
-                
-                # Extract the boxed answer for clearer response
-                match = re.search(r'\\boxed\{([^}]+)\}', response)
-                if match:
-                    answer = match.group(1)
-                    formatted_response = f"CALCULATION COMPLETE: The answer to '{question}' is {answer}."
-                else:
-                    # If no boxed answer, still mark as complete
-                    formatted_response = f"CALCULATION COMPLETE: {response}"
-                
-                # Cache the formatted response
-                self.call_history[normalized] = formatted_response
-                
-                # Track metrics if available
-                if self.metrics_tracker:
-                    t_end = time.time()
-                    latency = t_end - t_start
-                    self.metrics_tracker.add_tool_call(
-                        tool_name="slm_help",
-                        input_text=question,
-                        output_text=formatted_response,
-                        latency=latency,
-                        is_duplicate=False
-                    )
-                
-                return formatted_response
-                
-            except Exception as e:
-                error_msg = f"CALCULATION ERROR: Unable to process '{question}'. Error: {str(e)}"
-                if self.metrics_tracker:
-                    t_end = time.time()
-                    latency = t_end - t_start
-                    self.metrics_tracker.add_tool_call(
-                        tool_name="slm_help",
-                        input_text=question,
-                        output_text=error_msg,
-                        latency=latency,
-                        is_duplicate=False
-                    )
-                return error_msg
+    Args:
+        question: The specific calculation to perform (e.g., "What is 520 + 650?")
+    
+    Returns:
+        Definitive answer in format "CALCULATION COMPLETE: The answer is X"
+    """
+    print(f"[TOOL CALLED] slm_help: {question[:60]}...")
+    
+    try:
+        model, tok = _lazy_load_slm()
+
+        sys = "You are a math calculator. Solve step-by-step. Put the final answer in \\boxed{} at the end."
         
-        return slm_help
+        messages = [
+            {"role": "system", "content": sys},
+            {"role": "user", "content": question},
+        ]
+        
+        prompt = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = tok([prompt], return_tensors="pt").to(model.device)
 
-# Strong, explicit instructions with examples
-ROUTER_INSTRUCTIONS = """You are a math problem solver that uses a specialized calculation tool for ALL arithmetic operations.
+        t0 = time.time()
+        with torch.inference_mode():
+            out = model.generate(
+                **inputs,
+                max_new_tokens=512,
+                do_sample=False,
+                pad_token_id=tok.eos_token_id,
+            )
+        
+        gen = tok.batch_decode(out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
+        latency = time.time() - t0
 
-CRITICAL RULES:
-1. Use slm_help() for EVERY calculation, no matter how simple
-2. NEVER perform mental math - always use the tool
-3. Call the tool EXACTLY ONCE per unique calculation
-4. The tool returns definitive answers - ALWAYS accept them
-5. If you see "ALREADY CALCULATED", use that cached result immediately
-6. If you see "CALCULATION COMPLETE", that's the final answer for that calculation
+        # Extract the boxed answer
+        match = re.search(r'\\boxed\{([^}]+)\}', gen)
+        
+        # Log to tracker
+        try:
+            from router_experiment import tracker
+            tracker.log_tool_call(question, gen, latency)
+        except ImportError:
+            pass
 
-RESPONSE FORMAT:
-- The tool will return one of:
-  * "CALCULATION COMPLETE: The answer to 'X' is Y" - This is a new calculation
-  * "ALREADY CALCULATED: ..." - This means you already asked this, use the cached answer
-  * "CALCULATION ERROR: ..." - Something went wrong, try rephrasing
+        if match:
+            answer = match.group(1)
+            # Return definitive format that signals completion
+            return f"CALCULATION COMPLETE: The answer to '{question}' is {answer}. Use this value directly in your solution."
+        else:
+            # Fallback if no boxed answer found
+            return f"CALCULATION COMPLETE: {gen}\n\nUse the final result from above in your solution."
+        
+    except Exception as e:
+        return f"CALCULATION ERROR: {str(e)}. Please solve this calculation yourself."
 
-WORKFLOW:
-1. Break down the problem into individual calculations
-2. Call slm_help() for each calculation ONCE
-3. Use the returned answers to continue
-4. NEVER re-calculate something you've already asked
-
-Example:
-User: What is (520 + 650) * 2?
-You: I'll solve this step by step.
-[Call slm_help("What is 520 + 650?")]
-Tool: "CALCULATION COMPLETE: The answer to '520 + 650' is 1170."
-You: Now I'll multiply by 2.
-[Call slm_help("What is 1170 * 2?")]
-Tool: "CALCULATION COMPLETE: The answer to '1170 * 2' is 2340."
-You: The final answer is 2340.
-
-NEVER DO THIS:
-[Call slm_help("What is 520 + 650?")]
-[Call slm_help("What is 520 + 650?")] <- WRONG! Don't repeat calculations!
-
-Remember: Trust the tool completely. One call per calculation. Move forward with the answer."""
-
-def create_router_agent(metrics_tracker=None):
-    """Create a router agent with loop prevention"""
-    global tracker
-    tracker = metrics_tracker
+# ---------------------------
+# Agent
+# ---------------------------
+INSTRUCTIONS = (
+    "You solve high school math competition problems.\n\n"
     
-    # Create tool with state tracking
-    tool_tracker = ToolCallTracker(metrics_tracker)
-    slm_help_tool = tool_tracker.create_slm_tool()
+    "WORKFLOW:\n"
+    "1. Understand the problem\n"
+    "2. For ANY calculation, call slm_help ONCE with that exact calculation\n"
+    "3. When you receive 'CALCULATION COMPLETE:', the tool has finished\n"
+    "4. Extract the answer provided and USE IT immediately\n"
+    "5. Continue with your solution using that result\n"
+    "6. Provide your final answer in \\boxed{}\n\n"
     
-    agent = Agent(
-        instructions=ROUTER_INSTRUCTIONS,
-        model="gpt-4o-mini",
-        model_settings=ModelSettings(
-            max_tokens=2048,
-            temperature=0.1,  # Lower temperature for more consistent behavior
-            parallel_tool_calls=False  # Prevent simultaneous calls
-        ),
-        tools=[slm_help_tool]
-    )
+    "CRITICAL RULES:\n"
+    "• Call slm_help for ALL arithmetic, algebra, combinatorics\n"
+    "• When you see 'CALCULATION COMPLETE:', the calculation is DONE\n"
+    "• NEVER call slm_help again for the same calculation\n"
+    "• Use the provided answer immediately - do NOT verify or retry\n"
+    "• After you have your final answer, write \\boxed{answer} and STOP\n\n"
     
-    # Attach the tracker to the agent for access during runs
-    agent.tool_tracker = tool_tracker
-    
-    return agent
+    "Example:\n"
+    "You: slm_help('What is 26 times 10?')\n"
+    "Tool: CALCULATION COMPLETE: The answer to 'What is 26 times 10?' is 260.\n"
+    "You: Use 260 in the next step. Do NOT call slm_help again for 26*10."
+)
 
-# Create default agent instance
-agent = create_router_agent()
+agent = Agent(
+    name="Math Expert Agent",
+    instructions=INSTRUCTIONS,
+    model="gpt-4o-mini",
+    model_settings=ModelSettings(
+        max_tokens=2048,
+        parallel_tool_calls=False
+    ),
+    tools=[slm_help],
+)
+
+async def run_agent(question: str):
+    result = await Runner.run(agent, question, max_turns=15)
+    return result.final_output
+
+# Test
+async def main():
+    qs = [
+        "If 3x + 5 = 20, what is x?",
+        "What is 520 + 650?",
+        "Calculate 26 choose 2"
+    ]
+
+    for q in qs:
+        print(f"\n{'='*60}")
+        print(f"Q: {q}")
+        out = await run_agent(q)
+        print(f"Answer: {out}")
+        print(f"{'='*60}")
+
+if __name__ == "__main__":
+    try:
+        get_ipython()
+        import nest_asyncio
+        nest_asyncio.apply()
+        asyncio.run(main())
+    except NameError:
+        asyncio.run(main())

@@ -1,16 +1,17 @@
+# utils.py
 """
-Utility functions and classes for experiment tracking
+Utility functions for MATH500 evaluation experiments
 """
 import re
 import json
-import time
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+from typing import Dict, List
+from dataclasses import dataclass, asdict
 
+# ---------------------------
+# Data Structures
+# ---------------------------
 @dataclass
 class ProblemResult:
-    """Results for a single problem"""
     problem_id: str
     subject: str
     difficulty: str
@@ -19,282 +20,185 @@ class ProblemResult:
     prediction: str
     is_correct: bool
     latency_total: float
-    latency_llm: float
-    latency_slm: float
-    tool_calls: int
-    tool_call_details: List[Dict[str, Any]] = field(default_factory=list)
+    latency_llm: float = 0.0
+    latency_slm: float = 0.0
+    tool_calls: int = 0
+    tool_call_details: List[Dict] = None
+    
+    def __post_init__(self):
+        if self.tool_call_details is None:
+            self.tool_call_details = []
     
     def to_dict(self):
-        """Convert to dictionary for serialization"""
         return asdict(self)
 
-class MetricsTracker:
-    """Track metrics across tool calls and problems"""
-    
-    def __init__(self):
-        self.current_tool_calls = []
-        self.current_slm_time = 0.0
-        self.all_problems = []
-        
-    def start_problem(self):
-        """Reset tracking for a new problem"""
-        if self.current_tool_calls:  # Save previous problem if exists
-            self.all_problems.append({
-                'tool_calls': self.current_tool_calls.copy(),
-                'slm_time': self.current_slm_time
-            })
-        self.current_tool_calls = []
-        self.current_slm_time = 0.0
-    
-    def add_tool_call(self, tool_name: str, input_text: str, output_text: str, 
-                      latency: float, is_duplicate: bool = False):
-        """
-        Track a tool call
-        
-        Args:
-            tool_name: Name of the tool called
-            input_text: Input to the tool
-            output_text: Output from the tool
-            latency: Time taken for the tool call
-            is_duplicate: Whether this is a duplicate call
-        """
-        call_info = {
-            'tool': tool_name,
-            'input_text': input_text,
-            'output_text': output_text,
-            'latency': latency,
-            'is_duplicate': is_duplicate,
-            'timestamp': time.time()
-        }
-        self.current_tool_calls.append(call_info)
-        
-        # Add to SLM time if it's not a duplicate
-        if not is_duplicate and tool_name == "slm_help":
-            self.current_slm_time += latency
-    
-    def get_summary(self):
-        """Get summary statistics"""
-        total_calls = sum(len(p['tool_calls']) for p in self.all_problems)
-        duplicate_calls = sum(
-            len([c for c in p['tool_calls'] if c.get('is_duplicate', False)])
-            for p in self.all_problems
-        )
-        
-        return {
-            'total_problems': len(self.all_problems),
-            'total_tool_calls': total_calls,
-            'duplicate_calls': duplicate_calls,
-            'duplicate_rate': duplicate_calls / total_calls if total_calls > 0 else 0
-        }
-
+# ---------------------------
+# Answer Extraction (matches llm_test.py)
+# ---------------------------
 def extract_answer(text: str) -> str:
     """
-    Extract numerical answer from text
-    Handles various formats including boxed answers
+    Extract numerical answer from model output.
+    Matches the extraction logic from llm_test.py exactly.
     
     Args:
-        text: Text containing the answer
-    
+        text: Model output text
+        
     Returns:
-        Extracted answer as string
+        Extracted answer as string (only digits)
     """
-    if not text:
-        return ""
+    # First try "the answer is X" pattern
+    m = re.findall(r"(?:the answer is|answer is)\s*(\d+)", text, re.IGNORECASE)
+    if m:
+        return m[-1]
     
-    # First try to find boxed answer (most reliable)
-    boxed_match = re.search(r'\\boxed\{([^}]+)\}', text)
-    if boxed_match:
-        return boxed_match.group(1).strip()
-    
-    # Try to find "answer is" patterns
-    patterns = [
-        r"final answer is[:\s]*([+-]?\d+\.?\d*)",
-        r"answer is[:\s]*([+-]?\d+\.?\d*)",
-        r"equals?[:\s]*([+-]?\d+\.?\d*)",
-        r"result is[:\s]*([+-]?\d+\.?\d*)",
-        r"therefore[,\s]+([+-]?\d+\.?\d*)",
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            return match.group(1).strip()
-    
-    # Look for a number at the end of the text
-    end_number = re.search(r'([+-]?\d+\.?\d*)\s*[.!]?\s*$', text)
-    if end_number:
-        return end_number.group(1).strip()
+    # Fallback: last number in text
+    m = re.findall(r"\d+", text)
+    if m:
+        return m[-1]
     
     return ""
 
-def check_answer(prediction: str, ground_truth: str, tolerance: float = 1e-9) -> bool:
+def extract_ground_truth(answer: str) -> str:
     """
-    Check if prediction matches ground truth
+    Extract ground truth answer from answer column.
+    Matches llm_test.py logic.
     
     Args:
-        prediction: The predicted answer (full text)
-        ground_truth: The correct answer
-        tolerance: Numerical tolerance for float comparison
-    
+        answer: Content from 'answer' column
+        
     Returns:
-        Boolean indicating if the answer is correct
+        Extracted answer as string (only digits)
     """
-    # Extract answer from prediction if needed
-    pred_answer = extract_answer(prediction)
-    
-    if not pred_answer:
-        return False
-    
-    # Clean up ground truth
-    ground_truth = str(ground_truth).strip()
-    
-    # Try exact string match first
-    if pred_answer == ground_truth:
-        return True
-    
-    # Try numerical comparison
-    try:
-        pred_num = float(pred_answer)
-        truth_num = float(ground_truth)
-        return abs(pred_num - truth_num) < tolerance
-    except (ValueError, TypeError):
-        # If not numbers, fall back to string comparison
-        return pred_answer.lower() == ground_truth.lower()
+    gold_num = re.findall(r"\d+", str(answer))
+    return gold_num[-1] if gold_num else ""
 
-def calculate_summary(results: List[ProblemResult]) -> Dict[str, Any]:
+def check_answer(prediction: str, ground_truth: str) -> bool:
     """
-    Calculate summary statistics from results
+    Check if predicted answer matches ground truth.
     
     Args:
-        results: List of problem results
+        prediction: Model's full output text
+        ground_truth: Content from 'answer' column
+        
+    Returns:
+        True if answers match, False otherwise
+    """
+    pred = extract_answer(prediction)
+    gold = extract_ground_truth(ground_truth)
+    return pred == gold
+
+# ---------------------------
+# Metrics Tracker
+# ---------------------------
+class MetricsTracker:
+    """Track tool usage metrics during evaluation"""
     
+    def __init__(self):
+        self.reset()
+    
+    def reset(self):
+        """Reset all tracking for new experiment"""
+        self.current_tool_calls = []
+        self.current_slm_time = 0.0
+    
+    def start_problem(self):
+        """Reset counters for new problem"""
+        self.current_tool_calls = []
+        self.current_slm_time = 0.0
+    
+    def log_tool_call(self, question: str, result: str, latency: float):
+        """
+        Log a single SLM tool call.
+        
+        Args:
+            question: Question sent to SLM
+            result: JSON result from SLM
+            latency: Time taken by SLM
+        """
+        self.current_tool_calls.append({
+            "question": question,
+            "result": result,
+            "latency": latency
+        })
+        self.current_slm_time += latency
+
+# ---------------------------
+# Results Saving
+# ---------------------------
+def save_results(results: List[ProblemResult], filepath: str, summary: Dict = None):
+    """
+    Save evaluation results to JSON file.
+    
+    Args:
+        results: List of ProblemResult objects
+        filepath: Output file path
+        summary: Optional summary statistics dict
+    """
+    output_data = {
+        "detailed_results": [r.to_dict() for r in results]
+    }
+    
+    if summary:
+        output_data["summary"] = summary
+    
+    with open(filepath, 'w') as f:
+        json.dump(output_data, f, indent=2)
+    
+    print(f"Results saved to {filepath}")
+
+# ---------------------------
+# Summary Statistics
+# ---------------------------
+def calculate_summary(results: List[ProblemResult]) -> Dict:
+    """
+    Calculate summary statistics from results.
+    
+    Args:
+        results: List of ProblemResult objects
+        
     Returns:
         Dictionary with summary statistics
     """
     if not results:
-        return {
-            'total_problems': 0,
-            'correct': 0,
-            'accuracy': 0.0,
-            'avg_latency_total': 0.0,
-            'avg_latency_llm': 0.0,
-            'avg_latency_slm': 0.0,
-            'avg_tool_calls': 0.0,
-            'total_tool_calls': 0
-        }
+        return {}
     
     correct_count = sum(1 for r in results if r.is_correct)
-    total_tool_calls = sum(r.tool_calls for r in results)
+    total = len(results)
     
-    # Calculate averages
-    avg_latency_total = sum(r.latency_total for r in results) / len(results)
-    avg_latency_llm = sum(r.latency_llm for r in results) / len(results)
-    avg_latency_slm = sum(r.latency_slm for r in results) / len(results)
-    avg_tool_calls = total_tool_calls / len(results)
-    
-    # Calculate duplicate statistics
-    duplicate_calls_total = sum(
-        len([c for c in r.tool_call_details if c.get('is_duplicate', False)])
-        for r in results
-    )
-    
-    return {
-        'total_problems': len(results),
-        'correct': correct_count,
-        'accuracy': correct_count / len(results),
-        'avg_latency_total': avg_latency_total,
-        'avg_latency_llm': avg_latency_llm,
-        'avg_latency_slm': avg_latency_slm,
-        'avg_tool_calls': avg_tool_calls,
-        'total_tool_calls': total_tool_calls,
-        'duplicate_calls': duplicate_calls_total,
-        'duplicate_rate': duplicate_calls_total / total_tool_calls if total_tool_calls > 0 else 0
+    summary = {
+        "total_problems": total,
+        "correct": correct_count,
+        "accuracy": correct_count / total if total > 0 else 0,
+        "avg_latency": sum(r.latency_total for r in results) / total if total > 0 else 0,
     }
+    
+    # Add router-specific metrics if available
+    if any(r.tool_calls > 0 for r in results):
+        summary["avg_llm_latency"] = sum(r.latency_llm for r in results) / total if total > 0 else 0
+        summary["avg_slm_latency"] = sum(r.latency_slm for r in results) / total if total > 0 else 0
+        summary["avg_tool_calls"] = sum(r.tool_calls for r in results) / total if total > 0 else 0
+        summary["tool_usage_rate"] = sum(1 for r in results if r.tool_calls > 0) / total if total > 0 else 0
+    
+    return summary
 
-def print_summary(summary: Dict[str, Any], experiment_name: str = "Experiment"):
+def print_summary(summary: Dict, experiment_name: str = "Experiment"):
     """
-    Print formatted summary
+    Print formatted summary statistics.
     
     Args:
-        summary: Summary dictionary from calculate_summary
-        experiment_name: Name of the experiment for the header
+        summary: Summary dictionary from calculate_summary()
+        experiment_name: Name to display in header
     """
     print("\n" + "="*60)
-    print(f"{experiment_name} Results Summary")
+    print(f"{experiment_name.upper()} RESULTS")
     print("="*60)
-    print(f"Total Problems: {summary['total_problems']}")
-    print(f"Correct: {summary['correct']}/{summary['total_problems']}")
-    print(f"Accuracy: {summary['accuracy']:.2%}")
-    print(f"\nLatency Statistics:")
-    print(f"  Average Total: {summary['avg_latency_total']:.3f}s")
-    print(f"  Average LLM: {summary['avg_latency_llm']:.3f}s")
-    print(f"  Average SLM: {summary['avg_latency_slm']:.3f}s")
-    print(f"\nTool Call Statistics:")
-    print(f"  Average per problem: {summary['avg_tool_calls']:.2f}")
-    print(f"  Total calls: {summary['total_tool_calls']}")
-    if 'duplicate_rate' in summary:
-        print(f"  Duplicate calls: {summary.get('duplicate_calls', 0)} ({summary['duplicate_rate']:.1%})")
-
-def save_results(results: List[ProblemResult], filename: str, summary: Dict[str, Any] = None):
-    """
-    Save results to JSON file
+    print(f"Total problems: {summary['total_problems']}")
+    print(f"Correct: {summary['correct']}")
+    print(f"Accuracy: {summary['accuracy']*100:.2f}%")
+    print(f"Average latency: {summary['avg_latency']:.2f}s")
     
-    Args:
-        results: List of problem results
-        filename: Output filename
-        summary: Optional summary to include
-    """
-    output_data = {
-        'timestamp': datetime.now().isoformat(),
-        'results': [r.to_dict() for r in results],
-    }
-    
-    if summary:
-        output_data['summary'] = summary
-    
-    with open(filename, 'w') as f:
-        json.dump(output_data, f, indent=2)
-    
-    print(f"Results saved to {filename}")
-
-def load_results(filename: str) -> tuple[List[ProblemResult], Dict[str, Any]]:
-    """
-    Load results from JSON file
-    
-    Args:
-        filename: Input filename
-    
-    Returns:
-        Tuple of (results list, summary dict)
-    """
-    with open(filename, 'r') as f:
-        data = json.load(f)
-    
-    results = [
-        ProblemResult(**r) for r in data.get('results', [])
-    ]
-    
-    summary = data.get('summary', {})
-    
-    return results, summary
-
-# Test functions
-def test_extraction():
-    """Test answer extraction"""
-    test_cases = [
-        ("The answer is 42", "42"),
-        ("Therefore, \\boxed{123}", "123"),
-        ("equals 3.14", "3.14"),
-        ("The result is -7.", "-7"),
-        ("After calculation: 999", "999"),
-    ]
-    
-    print("Testing answer extraction:")
-    for text, expected in test_cases:
-        result = extract_answer(text)
-        status = "✓" if result == expected else "✗"
-        print(f"{status} '{text}' -> '{result}' (expected '{expected}')")
-
-if __name__ == "__main__":
-    # Run tests
-    test_extraction()
+    if "avg_tool_calls" in summary:
+        print(f"Average LLM latency: {summary['avg_llm_latency']:.2f}s")
+        print(f"Average SLM latency: {summary['avg_slm_latency']:.2f}s")
+        print(f"Tool usage rate: {summary['tool_usage_rate']*100:.1f}%")
+        print(f"Average tool calls: {summary['avg_tool_calls']:.2f}")
