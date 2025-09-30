@@ -52,6 +52,20 @@ def extract_boxed_or_lastnum(text: str) -> str:
     m = _LAST_NUM.findall(text)
     return m[-1] if m else ""
 
+def extract_answer_from_slm(text: str) -> str:
+    """Extract answer from SLM output that ends with 'The answer is: X'"""
+    # Try to find "The answer is: X" pattern
+    m = re.search(r"[Tt]he answer is:?\s*([^\n.]+)", text)
+    if m:
+        answer = m.group(1).strip()
+        # Extract just numbers/symbols from it
+        nums = re.findall(r"-?\d+(?:\.\d+)?", answer)
+        return nums[-1] if nums else answer
+    
+    # Fallback: last number in entire text
+    nums = re.findall(r"-?\d+(?:\.\d+)?", text)
+    return nums[-1] if nums else ""
+
 # ---------------------------
 # Tool: call SLM for help
 # ---------------------------
@@ -71,9 +85,10 @@ def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) 
         model, tok = _lazy_load_slm()
 
         sys = (
-            "Please reason step by step and put your final answer within \\boxed{}."
-            if mode == "cot"
-            else "Answer concisely; only provide the final answer within \\boxed{}."
+            "You are a math calculation assistant. "
+            "Solve the problem step by step. "
+            "At the very end, you MUST write 'The answer is: X' where X is the final numerical answer. "
+            "Do not write anything after 'The answer is: X'."
         )
         messages = [
             {"role": "system", "content": sys},
@@ -91,7 +106,7 @@ def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) 
                 pad_token_id=tok.eos_token_id,
             )
         gen = tok.batch_decode(out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
-        ans = extract_boxed_or_lastnum(gen)
+        ans = extract_answer_from_slm(gen)
         _lat = time.time() - t0
 
         # Debug logging - BEFORE the return
