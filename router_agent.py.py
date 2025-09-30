@@ -1,4 +1,4 @@
-# router_agent.py
+# toy_router_agent.py
 import os, re, time, asyncio, torch, json
 from dotenv import load_dotenv
 
@@ -96,17 +96,36 @@ def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) 
         _lat = time.time() - t0
 
         # Return properly formatted JSON string
-        return json.dumps({
+        result_json = json.dumps({
             "answer": ans,
             "latency_sec": round(_lat, 3),
             "reasoning": gen
         })
+        
+        # Log to tracker if it exists (for evaluation)
+        try:
+            from math500_evaluation import tracker
+            tracker.log_tool_call(question, result_json, _lat)
+        except ImportError:
+            pass  # Tracker not imported, skip logging
+        
+        return result_json
+        
     except Exception as e:
-        return json.dumps({
+        error_json = json.dumps({
             "error": str(e),
             "answer": "",
             "reasoning": ""
         })
+        
+        # Log error to tracker if it exists
+        try:
+            from math500_evaluation import tracker
+            tracker.log_tool_call(question, error_json, 0.0)
+        except ImportError:
+            pass
+        
+        return error_json
 
 # Wrap the implementation for the Agent SDK
 @function_tool
@@ -122,18 +141,23 @@ def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str
     Returns:
       str: JSON string with {"answer": "<value>", "reasoning": "<model_output>"}
     """
-    print(f"🔧 [TOOL CALLED] LLM invoked slm_help with question: {question[:60]}...")
+    print(f"[TOOL CALLED] LLM invoked slm_help with question: {question[:60]}...")
     return _slm_help_impl(question, mode, max_new_tokens)
 
 # ---------------------------
 # Agent (LLM controller)
 # ---------------------------
 INSTRUCTIONS = (
-    "You are an expert at solving high-school competition math problems. "
-    "When you encounter arithmetic calculations, algebraic equations, or numerical computations "
-    "that can be solved deterministically, use the `slm_help` tool to solve them efficiently. "
-    "For conceptual reasoning, proofs, or complex multi-step problems, reason through them yourself. "
-    "Always provide a clear final answer."
+    "You are an expert at solving high school competition math problems (MATH dataset level). "
+    "Break down complex problems into steps. When you encounter:\n"
+    "- Arithmetic computations (e.g., 127 × 89, 7^2023 mod 1000)\n"
+    "- Algebraic simplifications (e.g., expand (x+2)(x-3), factor x^2-5x+6)\n"
+    "- Solving equations (e.g., 3x^2 + 5x - 2 = 0)\n"
+    "- Number theory calculations (e.g., gcd, lcm, modular arithmetic)\n"
+    "Use the `slm_help` tool to compute these efficiently and accurately.\n\n"
+    "For conceptual reasoning, geometric proofs, counting arguments, or strategic problem-solving, "
+    "work through them yourself step-by-step.\n\n"
+    "Always show your reasoning and provide the final answer in \\boxed{} format."
 )
 
 agent = Agent(
@@ -144,33 +168,13 @@ agent = Agent(
 )
 
 # ---------------------------
-# Optional: small heuristic router (pre-filter)
+# Run Agent
 # ---------------------------
-_SIMPLE_EQ = re.compile(r"^\s*[-+*/\d\s().=x]+$")
-
-# def should_delegate_to_slm(question: str) -> bool:
-#     """
-#     Toy router: delegate if (a) short prompt, or (b) looks like a simple algebra/arithmetic form,
-#     or (c) has high digit density.
-#     """
-#     q = question.strip()
-#     words = len(q.split())
-#     digits = sum(ch.isdigit() for ch in q)
-#     digit_density = digits / max(1, len(q))
-
-#     if words <= 40:
-#         return True
-#     if _SIMPLE_EQ.match(q):
-#         return True
-#     if digit_density > 0.12:
-#         return True
-#     return False
-
 async def run_agent(question: str):
     """
     Run the LLM agent, which can delegate to SLM when needed.
     """
-    print(f"🤖 [AGENT] Processing question with LLM...")
+    print(f"[AGENT] Processing question with LLM...")
     result = await Runner.run(agent, question)
     return result.final_output
 
