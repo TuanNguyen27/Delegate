@@ -1,12 +1,14 @@
 # slm_experiment.py
 """
 SLM experiment: Qwen 2.5 alone (no tools)
-Works with both MATH500 and GSM8K datasets
+Runs locally on GPU (T4 / A100 / etc.)
+Works with both MATH500 and GSM8K datasets.
 
 Usage: 
     python slm_experiment.py --dataset gsm8k --sample 30
     python slm_experiment.py --dataset math500 --sample 10
 """
+
 import time
 import pandas as pd
 import asyncio
@@ -24,32 +26,39 @@ from utils import (
 )
 
 # ---------------------------
-# Qwen Agent
+# Qwen Agent (local only)
 # ---------------------------
 class QwenAgent:
-    def __init__(self, model_id="Qwen/Qwen2.5-Math-1.5B-Instruct"):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+    def __init__(self, model_id="Qwen/Qwen2.5-Math-1.5B-Instruct", max_new_tokens=512):
+        self.max_new_tokens = max_new_tokens
+        print(f"🔥 Loading {model_id} locally...")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_id,
             device_map="auto",
-            torch_dtype=torch.float16
+            torch_dtype=torch.float16,
+            trust_remote_code=True
         )
+        print("✅ Model ready (local inference).")
 
     async def run(self, prompt: str) -> str:
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
-        outputs = self.model.generate(
-            **inputs,
-            max_new_tokens=512,
-            temperature=0.0
-        )
+        with torch.inference_mode():
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=self.max_new_tokens,
+                temperature=0.0,
+                do_sample=False,
+                pad_token_id=self.tokenizer.eos_token_id
+            )
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
 
 # ---------------------------
 # Experiment Runner
 # ---------------------------
-async def run_slm_experiment(test_df: pd.DataFrame, output_file: str):
-    agent = QwenAgent()
+async def run_slm_experiment(test_df: pd.DataFrame, output_file: str, max_new_tokens: int):
+    agent = QwenAgent(max_new_tokens=max_new_tokens)
 
     print("\n" + "="*60)
     print("SLM EXPERIMENT: Qwen 2.5 alone (no tools)")
@@ -86,20 +95,20 @@ async def run_slm_experiment(test_df: pd.DataFrame, output_file: str):
         print(f"   Ground truth: {row['answer']}")
         print(f"   Latency: {problem_result.latency_total:.2f}s")
 
+    # Summary
     summary = calculate_summary(results)
-
     df_results = pd.DataFrame([r.to_dict() for r in results])
     subject_stats = df_results.groupby("subject").agg({
         "is_correct": ["mean", "count"],
         "latency_total": "mean"
     }).round(3)
 
-    print_summary(summary, "SLM Qwen 2.5")
+    print_summary(summary, "SLM Qwen 2.5 (local)")
     print("\nSubject breakdown:")
     print(subject_stats)
 
     save_results(results, output_file, summary)
-    print(f"\nResults saved to: {output_file}")
+    print(f"\n💾 Results saved to: {output_file}")
 
     return summary
 
@@ -108,13 +117,16 @@ async def run_slm_experiment(test_df: pd.DataFrame, output_file: str):
 # Main
 # ---------------------------
 async def main():
-    parser = argparse.ArgumentParser(description='Run SLM experiment')
+    parser = argparse.ArgumentParser(description='Run SLM experiment (local Qwen)')
     parser.add_argument('--dataset', type=str, default='math500',
                        choices=['math500', 'gsm8k'])
     parser.add_argument('--sample', type=int, default=None)
     parser.add_argument('--random', action='store_true')
+    parser.add_argument('--max_tokens', type=int, default=512,
+                       help='Max new tokens for Qwen output')
     args = parser.parse_args()
 
+    # Load dataset
     if args.dataset == 'gsm8k':
         from gsm8k_loader import load_gsm8k_as_df
         test_df = load_gsm8k_as_df(
@@ -136,7 +148,8 @@ async def main():
 
         output_file = f"results_slm_math500{'_sample' + str(args.sample) if args.sample else ''}.json"
 
-    await run_slm_experiment(test_df, output_file)
+    # Run experiment
+    await run_slm_experiment(test_df, output_file, args.max_tokens)
 
 
 if __name__ == "__main__":

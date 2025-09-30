@@ -1,4 +1,3 @@
-# llm_experiment.py
 """
 Baseline experiment: GPT-4o-mini alone (no tools)
 Works with both MATH500 and GSM8K datasets
@@ -7,11 +6,13 @@ Usage:
     python llm_experiment.py --dataset gsm8k --sample 30
     python llm_experiment.py --dataset math500 --sample 10
 """
+import os
 import time
 import pandas as pd
 import asyncio
 import argparse
-from agents import Agent, Runner  # assumes your custom agent system
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 from utils import (
     ProblemResult,
@@ -25,21 +26,10 @@ from utils import (
 # ---------------------------
 # Experiment Runner
 # ---------------------------
-async def run_llm_experiment(test_df: pd.DataFrame, output_file: str):
+async def run_llm_experiment(test_df: pd.DataFrame, output_file: str, max_tokens: int):
     """Run baseline experiment with GPT-4o-mini (no tools)"""
-
-    agent = Agent(
-        name="Math Expert Agent (Baseline)",
-        instructions=(
-            "You are an expert at solving high school competition math problems. "
-            "Solve the problem step by step, showing your reasoning. "
-            "At the end, provide your final answer in the format: 'The answer is <value>' "
-            "or use \\boxed{<value>} format."
-        ),
-        model="gpt-4o-mini",
-        max_tokens=2048,   # <-- no ModelSettings
-        tools=[]
-    )
+    load_dotenv()
+    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     print("\n" + "="*60)
     print("BASELINE EXPERIMENT: GPT-4o-mini alone (no tools)")
@@ -51,11 +41,25 @@ async def run_llm_experiment(test_df: pd.DataFrame, output_file: str):
     for idx, row in test_df.iterrows():
         print(f"\n[{idx+1}/{len(test_df)}] Processing {row['subject']}...")
 
+        prompt = f"""
+You are an expert at solving high school competition math problems.
+Solve the problem step by step, showing your reasoning.
+At the end, provide your final answer in the format: 'The answer is <value>' or use \\boxed{{<value>}} format.
+
+Problem:
+{row['problem']}
+"""
+
         t_start = time.time()
-        result = await Runner.run(agent, row["problem"])
+        resp = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=0
+        )
         t_end = time.time()
 
-        prediction = result.final_output
+        prediction = resp.choices[0].message.content
         is_correct = check_answer(prediction, row["answer"])
 
         problem_result = ProblemResult(
@@ -71,23 +75,22 @@ async def run_llm_experiment(test_df: pd.DataFrame, output_file: str):
 
         results.append(problem_result)
 
-        # Debug output
+        # Debug
         extracted = extract_answer(prediction)
         print(f"   Result: {'CORRECT' if is_correct else 'WRONG'}")
         print(f"   Extracted: {extracted}")
         print(f"   Ground truth: {row['answer']}")
         print(f"   Latency: {problem_result.latency_total:.2f}s")
 
-    # Calculate and print summary
+    # Summary
     summary = calculate_summary(results)
-
     df_results = pd.DataFrame([r.to_dict() for r in results])
     subject_stats = df_results.groupby("subject").agg({
         "is_correct": ["mean", "count"],
         "latency_total": "mean"
     }).round(3)
 
-    print_summary(summary, "Baseline")
+    print_summary(summary, "Baseline GPT-4o-mini")
     print("\nSubject breakdown:")
     print(subject_stats)
 
@@ -104,13 +107,11 @@ async def main():
     parser = argparse.ArgumentParser(description='Run baseline LLM experiment')
     parser.add_argument('--dataset', type=str, default='math500',
                        choices=['math500', 'gsm8k'])
-    parser.add_argument('--sample', type=int, default=None,
-                       help='Number of problems to sample')
-    parser.add_argument('--random', action='store_true',
-                       help='Random sample instead of first N')
+    parser.add_argument('--sample', type=int, default=None)
+    parser.add_argument('--random', action='store_true')
+    parser.add_argument('--max_tokens', type=int, default=2048)
     args = parser.parse_args()
 
-    # Load dataset
     if args.dataset == 'gsm8k':
         from gsm8k_loader import load_gsm8k_as_df
         test_df = load_gsm8k_as_df(
@@ -130,11 +131,4 @@ async def main():
                 test_df = test_df.head(args.sample)
             print(f"Sampled {len(test_df)} problems")
 
-        output_file = f"results_llm_math500{'_sample' + str(args.sample) if args.sample else ''}.json"
-
-    # Run experiment
-    await run_llm_experiment(test_df, output_file)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        output_file = f"results_llm
