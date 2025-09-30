@@ -41,7 +41,7 @@ async def run_router_experiment(test_df: pd.DataFrame):
         tracker.start_problem()
         
         t_start = time.time()
-        result = await Runner.run(agent, row["problem"])
+        result = await Runner.run(agent, row["problem"], max_turns=10)
         t_end = time.time()
         
         prediction = result.final_output
