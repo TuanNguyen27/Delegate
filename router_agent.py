@@ -55,8 +55,7 @@ def extract_boxed_or_lastnum(text: str) -> str:
 # ---------------------------
 # Tool: call SLM for help
 # ---------------------------
-@function_tool
-def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str:
+def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str:
     """
     Solve a high-school math problem with the local Small Language Model (SLM).
 
@@ -109,19 +108,38 @@ def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str
             "reasoning": ""
         })
 
+# Wrap the implementation for the Agent SDK
+@function_tool
+def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str:
+    """
+    Solve a high-school math problem with the local Small Language Model (SLM).
+
+    Args:
+      question (str): The problem text.
+      mode (str): "cot" for step-by-step; "direct" for concise final answer.
+      max_new_tokens (int): Maximum generated tokens.
+
+    Returns:
+      str: JSON string with {"answer": "<value>", "reasoning": "<model_output>"}
+    """
+    print(f"🔧 [TOOL CALLED] LLM invoked slm_help with question: {question[:60]}...")
+    return _slm_help_impl(question, mode, max_new_tokens)
+
 # ---------------------------
 # Agent (LLM controller)
 # ---------------------------
 INSTRUCTIONS = (
     "You are an expert at solving high-school competition math problems. "
-    "Use the tool `slm_help` when the task is arithmetic/algebraic or short deterministic math; "
-    "otherwise reason yourself. Always provide a final numeric answer."
+    "When you encounter arithmetic calculations, algebraic equations, or numerical computations "
+    "that can be solved deterministically, use the `slm_help` tool to solve them efficiently. "
+    "For conceptual reasoning, proofs, or complex multi-step problems, reason through them yourself. "
+    "Always provide a clear final answer."
 )
 
 agent = Agent(
     name="Math Expert Agent",
     instructions=INSTRUCTIONS,
-    model="gpt-4o-mini"
+    model="gpt-4o-mini",
     tools=[slm_help],
 )
 
@@ -148,19 +166,13 @@ def should_delegate_to_slm(question: str) -> bool:
         return True
     return False
 
-async def route_and_run(question: str, force: str | None = None):
+async def run_agent(question: str):
     """
-    Route to SLM (tool) or LLM agent. `force` can be "slm" or "llm" for debugging.
+    Run the LLM agent, which can delegate to SLM when needed.
     """
-    if force == "slm" or (force is None and should_delegate_to_slm(question)):
-        # Call the tool directly (fast path)
-        return slm_help(question=question, mode="cot", max_new_tokens=256)
-    else:
-        # Let the LLM decide (it can still call slm_help if it wants)
-        # Use Runner.run as a class method per the SDK docs
-        result = await Runner.run(agent, question)
-        # Access final_output attribute per SDK API
-        return result.final_output
+    print(f"🤖 [AGENT] Processing question with LLM...")
+    result = await Runner.run(agent, question)
+    return result.final_output
 
 # ---------------------------
 # Test
@@ -174,8 +186,17 @@ async def main():
 
     for q in qs:
         print(f"\nQ: {q}")
-        out = await route_and_run(q)
+        out = await run_agent(q)
         print(f"Ans: {out}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Check if we're in a notebook environment
+    try:
+        # If in notebook, use await directly instead of asyncio.run()
+        get_ipython()  # This will raise NameError if not in IPython/Jupyter
+        import nest_asyncio
+        nest_asyncio.apply()
+        asyncio.run(main())
+    except NameError:
+        # Not in notebook, use asyncio.run() normally
+        asyncio.run(main())
