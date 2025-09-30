@@ -129,7 +129,18 @@ async def main():
                 continue
             if exp in results:
                 value = results[exp].get(key, 0)
-                print(f"{value:{fmt}:<15}", end='')
+                # Format value first, then apply padding
+                if 'Accuracy' in label:
+                    formatted = f"{value*100:.2f}%"
+                elif 'Latency' in label and 'Total' not in label:
+                    formatted = f"{value:.3f}"
+                elif 'Latency' in label and 'Total' in label:
+                    formatted = f"{value:.2f}"
+                elif 'Tokens' in label and 'Total' in label:
+                    formatted = f"{int(value):,}"
+                else:
+                    formatted = f"{value:.1f}"
+                print(f"{formatted:<15}", end='')
                 comparison['results'].setdefault(exp, {})[key] = value
         print()
     
