@@ -197,7 +197,7 @@ async def main():
     print(f"Loaded {len(test_df)} problems from math500/test.csv")
     
     # Check required columns
-    required_cols = ["problem", "solution", "subject"]
+    required_cols = ["problem", "answer", "subject"]
     if not all(col in test_df.columns for col in required_cols):
         print(f"CSV must contain columns: {required_cols}")
         print(f"Available columns: {list(test_df.columns)}")
