@@ -76,23 +76,32 @@ def slm_help(question: str) -> str:
         gen = tok.batch_decode(out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
         latency = time.time() - t0
 
+        # Print full SLM output for debugging
+        print(f"[SLM OUTPUT] Time: {latency:.2f}s")
+        print(f"[SLM OUTPUT] Full response:\n{gen}\n")
+
         # Extract the boxed answer
         match = re.search(r'\\boxed\{([^}]+)\}', gen)
         
-        # Log to tracker
+        # Log to tracker - import at call time to avoid circular import
         try:
-            from router_experiment import tracker
-            tracker.log_tool_call(question, gen, latency)
-        except ImportError:
-            pass
+            import sys
+            if 'router_experiment' in sys.modules:
+                from router_experiment import tracker
+                tracker.log_tool_call(question, gen, latency)
+                print(f"[TRACKER] Logged tool call (latency: {latency:.2f}s)")
+        except Exception as e:
+            print(f"[TRACKER] Failed to log: {e}")
 
         if match:
             answer = match.group(1)
-            # Return definitive format that signals completion
-            return f"CALCULATION COMPLETE: The answer to '{question}' is {answer}. Use this value directly in your solution."
+            result = f"CALCULATION COMPLETE: The answer to '{question}' is {answer}. Use this value directly in your solution."
+            print(f"[SLM RESULT] Extracted answer: {answer}")
+            return result
         else:
-            # Fallback if no boxed answer found
-            return f"CALCULATION COMPLETE: {gen}\n\nUse the final result from above in your solution."
+            result = f"CALCULATION COMPLETE: {gen}\n\nUse the final result from above in your solution."
+            print(f"[SLM RESULT] No boxed answer found, returning full output")
+            return result
         
     except Exception as e:
         return f"CALCULATION ERROR: {str(e)}. Please solve this calculation yourself."
