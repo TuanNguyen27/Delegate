@@ -148,23 +148,23 @@ agent = Agent(
 # ---------------------------
 _SIMPLE_EQ = re.compile(r"^\s*[-+*/\d\s().=x]+$")
 
-def should_delegate_to_slm(question: str) -> bool:
-    """
-    Toy router: delegate if (a) short prompt, or (b) looks like a simple algebra/arithmetic form,
-    or (c) has high digit density.
-    """
-    q = question.strip()
-    words = len(q.split())
-    digits = sum(ch.isdigit() for ch in q)
-    digit_density = digits / max(1, len(q))
+# def should_delegate_to_slm(question: str) -> bool:
+#     """
+#     Toy router: delegate if (a) short prompt, or (b) looks like a simple algebra/arithmetic form,
+#     or (c) has high digit density.
+#     """
+#     q = question.strip()
+#     words = len(q.split())
+#     digits = sum(ch.isdigit() for ch in q)
+#     digit_density = digits / max(1, len(q))
 
-    if words <= 40:
-        return True
-    if _SIMPLE_EQ.match(q):
-        return True
-    if digit_density > 0.12:
-        return True
-    return False
+#     if words <= 40:
+#         return True
+#     if _SIMPLE_EQ.match(q):
+#         return True
+#     if digit_density > 0.12:
+#         return True
+#     return False
 
 async def run_agent(question: str):
     """
