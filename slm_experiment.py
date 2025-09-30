@@ -29,7 +29,7 @@ from utils import (
 # Qwen Agent (local only)
 # ---------------------------
 class QwenAgent:
-    def __init__(self, model_id="Qwen/Qwen2.5-Math-1.5B-Instruct", max_new_tokens=256):
+    def __init__(self, model_id="Qwen/Qwen2.5-Math-1.5B-Instruct", max_new_tokens=128):
         self.max_new_tokens = max_new_tokens
         print(f"🔥 Loading {model_id} locally...")
         self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
