@@ -157,24 +157,10 @@ def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) 
 def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 512) -> str:
     """
     Solve a high-school math problem with the local Small Language Model (SLM).
-    Use this tool for ANY computational or numerical calculation including:
-    - Arithmetic operations (addition, subtraction, multiplication, division)
-    - Solving equations (linear, quadratic, polynomial)
-    - Algebraic simplifications and expansions
-    - Modular arithmetic and number theory calculations
-    - Any calculation involving numbers
-    Returns the complete step-by-step solution.
-
-    Args:
-      question (str): The math problem or calculation to solve.
-      mode (str): "cot" for step-by-step reasoning; "direct" for concise answer.
-      max_new_tokens (int): Maximum tokens to generate.
-
-    Returns:
-      str: Complete solution with reasoning and final answer in \boxed{} format
+    Returns the complete reasoning output (not just the extracted answer).
     """
     print(f"[TOOL CALLED] LLM invoked slm_help with question: {question[:60]}...")
-    
+
     try:
         model, tok = _lazy_load_slm()
 
@@ -198,21 +184,32 @@ def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 512) -> str
                 do_sample=False,
                 pad_token_id=tok.eos_token_id,
             )
-        gen = tok.batch_decode(out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
-        _lat = time.time() - t0
+        gen = tok.batch_decode(
+            out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True
+        )[0]
+        latency = time.time() - t0
 
-        # Log to tracker if it exists
+        # Debug
+        print(f"[SLM DEBUG] Latency: {latency:.3f}s")
+        print(f"[SLM DEBUG] Output: {gen[:100]}...")
+
+        # Log if tracker exists
         try:
             from router_experiment import tracker
-            tracker.log_tool_call(question, gen, _lat)
+            tracker.log_tool_call(
+                question,
+                json.dumps({"reasoning": gen, "latency_sec": round(latency, 3)}),
+                latency,
+            )
         except ImportError:
             pass
-        
-        # Return the complete SLM output directly
+
+        # Return just the reasoning text — agent will see this
         return gen
-        
+
     except Exception as e:
         return f"Error: {str(e)}"
+
 
 # ---------------------------
 # Agent (LLM controller)
