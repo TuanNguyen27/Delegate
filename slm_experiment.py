@@ -1,10 +1,16 @@
 # slm_experiment.py
 """
-SLM experiment: Qwen 2.5-Math-1.5B-Instruct (no tools)
+SLM experiment: Qwen 2.5 alone (no tools)
+Works with both MATH500 and GSM8K datasets
+
+Usage: 
+    python slm_experiment.py --dataset gsm8k --sample 30
+    python slm_experiment.py --dataset math500 --sample 10
 """
 import time
 import pandas as pd
 import asyncio
+import argparse
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -18,7 +24,7 @@ from utils import (
 )
 
 # ---------------------------
-# Qwen Wrapper Agent
+# Qwen Agent
 # ---------------------------
 class QwenAgent:
     def __init__(self, model_id="Qwen/Qwen2.5-Math-1.5B-Instruct"):
@@ -30,12 +36,11 @@ class QwenAgent:
         )
 
     async def run(self, prompt: str) -> str:
-        """Generate an answer using Qwen 2.5"""
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
         outputs = self.model.generate(
             **inputs,
             max_new_tokens=512,
-            temperature=0.0  # deterministic
+            temperature=0.0
         )
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
@@ -43,13 +48,13 @@ class QwenAgent:
 # ---------------------------
 # Experiment Runner
 # ---------------------------
-async def run_slm_experiment(test_df: pd.DataFrame):
-    """Run experiment with Qwen 2.5"""
+async def run_slm_experiment(test_df: pd.DataFrame, output_file: str):
     agent = QwenAgent()
 
     print("\n" + "="*60)
     print("SLM EXPERIMENT: Qwen 2.5 alone (no tools)")
     print("="*60)
+    print(f"Running on {len(test_df)} problems")
 
     results = []
 
@@ -75,14 +80,12 @@ async def run_slm_experiment(test_df: pd.DataFrame):
 
         results.append(problem_result)
 
-        # Debug output
         extracted = extract_answer(prediction)
         print(f"   Result: {'CORRECT' if is_correct else 'WRONG'}")
         print(f"   Extracted: {extracted}")
         print(f"   Ground truth: {row['answer']}")
         print(f"   Latency: {problem_result.latency_total:.2f}s")
 
-    # Calculate and print summary
     summary = calculate_summary(results)
 
     df_results = pd.DataFrame([r.to_dict() for r in results])
@@ -95,8 +98,8 @@ async def run_slm_experiment(test_df: pd.DataFrame):
     print("\nSubject breakdown:")
     print(subject_stats)
 
-    # Save results
-    save_results(results, "results_slm_qwen2.5.json", summary)
+    save_results(results, output_file, summary)
+    print(f"\nResults saved to: {output_file}")
 
     return summary
 
@@ -104,30 +107,37 @@ async def run_slm_experiment(test_df: pd.DataFrame):
 # ---------------------------
 # Main
 # ---------------------------
-async def main(n_samples=None):
-    # Load test data
-    test_df = pd.read_csv("math500/test.csv")
-    print(f"Loaded {len(test_df)} problems from math500/test.csv")
+async def main():
+    parser = argparse.ArgumentParser(description='Run SLM experiment')
+    parser.add_argument('--dataset', type=str, default='math500',
+                       choices=['math500', 'gsm8k'])
+    parser.add_argument('--sample', type=int, default=None)
+    parser.add_argument('--random', action='store_true')
+    args = parser.parse_args()
 
-    # Optionally reduce sample size
-    if n_samples is not None:
-        test_df = test_df.sample(n=min(n_samples, len(test_df)), random_state=42)
+    if args.dataset == 'gsm8k':
+        from gsm8k_loader import load_gsm8k_as_df
+        test_df = load_gsm8k_as_df(
+            split='test',
+            n_samples=args.sample,
+            random_seed=42 if args.random else None
+        )
+        output_file = f"results_slm_gsm8k{'_sample' + str(args.sample) if args.sample else ''}.json"
+    else:
+        test_df = pd.read_csv("math500/test.csv")
+        print(f"Loaded {len(test_df)} problems from math500/test.csv")
 
-    # Check required columns
-    required_cols = ["problem", "answer", "subject"]
-    if not all(col in test_df.columns for col in required_cols):
-        print(f"CSV must contain columns: {required_cols}")
-        print(f"Available columns: {list(test_df.columns)}")
-        return
+        if args.sample:
+            if args.random:
+                test_df = test_df.sample(n=args.sample, random_state=42)
+            else:
+                test_df = test_df.head(args.sample)
+            print(f"Sampled {len(test_df)} problems")
 
-    # Run experiment
-    await run_slm_experiment(test_df)
+        output_file = f"results_slm_math500{'_sample' + str(args.sample) if args.sample else ''}.json"
+
+    await run_slm_experiment(test_df, output_file)
 
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--n_samples", type=int, default=None, help="Number of samples to run")
-    args = parser.parse_args()
-
-    asyncio.run(main(n_samples=args.n_samples))
+    asyncio.run(main())
