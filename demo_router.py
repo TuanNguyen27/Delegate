@@ -1,159 +1,175 @@
 #!/usr/bin/env python3
 """
-Interactive demo of LLM + SLM routing system
-Captures and displays the complete thought process
+Side-by-side comparison: Baseline LLM vs Hybrid LLM+SLM
 """
 import asyncio
+import time
 import sys
-import re
 from io import StringIO
-from contextlib import redirect_stdout, redirect_stderr
 
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
+from rich.live import Live
+from rich.layout import Layout
+from rich.columns import Columns
 
 console = Console()
 
-# Global to capture output
-captured_logs = []
-
 class LogCapture:
-    """Capture print statements from router_agent"""
+    """Capture tool calls"""
     def __init__(self):
-        self.logs = []
-        self.current_call = None
+        self.tool_calls = []
+        self.current_call = {}
     
     def write(self, text):
-        if text.strip():
-            self.logs.append(text)
-            
-            # Parse for tool calls
-            if '[TOOL CALLED]' in text:
-                question = text.split(':', 1)[1].strip() if ':' in text else text
-                self.current_call = {'question': question, 'output': '', 'answer': ''}
-            
-            elif '[SLM OUTPUT] Full response:' in text:
-                if self.current_call:
-                    self.current_call['output'] = text.split('Full response:\n', 1)[1].strip() if 'Full response:\n' in text else ''
-            
-            elif '[SLM RESULT] Extracted answer:' in text:
-                if self.current_call:
-                    self.current_call['answer'] = text.split('answer:', 1)[1].strip() if 'answer:' in text else ''
-                    captured_logs.append(self.current_call.copy())
-                    self.current_call = None
+        if '[TOOL CALLED]' in text:
+            q = text.split(':', 1)[1].strip() if ':' in text else ''
+            self.current_call = {'question': q}
+        elif '[SLM RESULT] Extracted answer:' in text:
+            ans = text.split(':', 1)[1].strip() if ':' in text else ''
+            self.current_call['answer'] = ans
+            self.tool_calls.append(self.current_call.copy())
     
     def flush(self):
         pass
 
-async def demo_problem(problem: str):
-    """Run a problem and show the complete workflow"""
-    global captured_logs
-    captured_logs = []
+async def run_baseline(problem: str):
+    """Run baseline (LLM only)"""
+    from agents import Agent, Runner, ModelSettings
     
-    console.print("\n" + "="*80, style="bold blue")
-    console.print(Panel(
-        Text(problem, style="bold cyan"),
-        title="[bold]Problem[/bold]",
-        border_style="cyan"
-    ))
+    agent = Agent(
+        name="Baseline Agent",
+        instructions="Solve step-by-step. Final answer in \\boxed{}.",
+        model="gpt-4o-mini",
+        model_settings=ModelSettings(max_tokens=2048),
+        tools=[]
+    )
     
-    console.print("\n[bold yellow]🤖 LLM is analyzing the problem...[/bold yellow]\n")
+    start = time.time()
+    result = await Runner.run(agent, problem, max_turns=10)
+    elapsed = time.time() - start
     
-    # Capture output while running
-    log_capture = LogCapture()
-    
-    # Import here to capture prints
+    return result.final_output, elapsed, []
+
+async def run_hybrid(problem: str):
+    """Run hybrid (LLM + SLM)"""
     from router_agent import run_agent
     
-    # Redirect prints temporarily
+    # Capture tool calls
+    log_capture = LogCapture()
     old_stdout = sys.stdout
     sys.stdout = log_capture
     
-    try:
-        result = await run_agent(problem)
-        sys.stdout = old_stdout
-        
-        # Display captured tool calls
-        if captured_logs:
-            console.print(f"[bold green]🔧 Tool Calls: {len(captured_logs)}[/bold green]\n")
-            
-            for i, call in enumerate(captured_logs, 1):
-                console.print(f"[bold magenta]═══ Tool Call #{i} ═══[/bold magenta]\n")
-                
-                # LLM → SLM
-                console.print(Panel(
-                    Text(call['question'], style="cyan"),
-                    title="[cyan]LLM asks SLM[/cyan]",
-                    border_style="blue"
-                ))
-                
-                # SLM reasoning (truncated)
-                reasoning = call['output'][:400] + '...' if len(call['output']) > 400 else call['output']
-                console.print(Panel(
-                    Text(reasoning, style="yellow"),
-                    title="[yellow]SLM thinks[/yellow]",
-                    border_style="yellow"
-                ))
-                
-                # SLM → LLM
-                console.print(Panel(
-                    Text(f"Answer: {call['answer']}", style="green bold"),
-                    title="[green]SLM returns to LLM[/green]",
-                    border_style="green"
-                ))
-                console.print()
-        else:
-            console.print("[yellow]ℹ️  No tool calls - LLM solved directly[/yellow]\n")
-        
-        # Final answer
-        console.print(Panel(
-            Text(result, style="bold green"),
-            title="[bold green]Final Answer[/bold green]",
-            border_style="bold green"
-        ))
-        
-    except Exception as e:
-        sys.stdout = old_stdout
-        console.print(f"\n[bold red]❌ Error:[/bold red] {str(e)}", style="bold red")
+    start = time.time()
+    result = await run_agent(problem)
+    elapsed = time.time() - start
+    
+    sys.stdout = old_stdout
+    
+    return result, elapsed, log_capture.tool_calls
 
-async def interactive_demo():
-    """Interactive demo mode"""
+async def compare(problem: str):
+    """Run both and display side-by-side"""
+    console.print(Panel(
+        Text(problem, style="bold white"),
+        title="Problem",
+        border_style="cyan"
+    ))
+    
+    console.print("\n[bold yellow]Running experiments...[/bold yellow]\n")
+    
+    # Run both
+    baseline_result, baseline_time, _ = await run_baseline(problem)
+    hybrid_result, hybrid_time, tool_calls = await run_hybrid(problem)
+    
+    # Calculate speedup
+    speedup = ((baseline_time - hybrid_time) / baseline_time * 100) if baseline_time > 0 else 0
+    faster = "Hybrid" if hybrid_time < baseline_time else "Baseline"
+    
+    # Create comparison table
+    table = Table(title="Performance Comparison", show_header=True, header_style="bold magenta")
+    table.add_column("Metric", style="cyan", width=20)
+    table.add_column("Baseline (LLM only)", style="yellow", width=30)
+    table.add_column("Hybrid (LLM+SLM)", style="green", width=30)
+    
+    table.add_row(
+        "Latency",
+        f"{baseline_time:.2f}s",
+        f"{hybrid_time:.2f}s"
+    )
+    
+    table.add_row(
+        "Tool Calls",
+        "0",
+        str(len(tool_calls))
+    )
+    
+    table.add_row(
+        "Speedup",
+        "—",
+        f"{abs(speedup):.1f}% {'faster' if speedup > 0 else 'slower'}"
+    )
+    
+    console.print(table)
+    
+    # Show tool calls if any
+    if tool_calls:
+        console.print(f"\n[bold green]Tool Calls Made ({len(tool_calls)}):[/bold green]")
+        for i, call in enumerate(tool_calls, 1):
+            console.print(f"  {i}. {call.get('question', 'N/A')} → {call.get('answer', 'N/A')}")
+    
+    # Show answers side by side
+    console.print("\n[bold]Final Answers:[/bold]\n")
+    
+    baseline_panel = Panel(
+        Text(baseline_result[:200] + "..." if len(baseline_result) > 200 else baseline_result, style="yellow"),
+        title="Baseline",
+        border_style="yellow"
+    )
+    
+    hybrid_panel = Panel(
+        Text(hybrid_result[:200] + "..." if len(hybrid_result) > 200 else hybrid_result, style="green"),
+        title="Hybrid",
+        border_style="green"
+    )
+    
+    console.print(Columns([baseline_panel, hybrid_panel]))
+    
+    # Verdict
+    console.print(f"\n[bold]Verdict:[/bold] [bold {faster.lower()}]{faster} was faster![/bold {faster.lower()}]")
+    
+    return {
+        'baseline_time': baseline_time,
+        'hybrid_time': hybrid_time,
+        'speedup': speedup,
+        'tool_calls': len(tool_calls)
+    }
+
+async def main():
+    """Main demo"""
     console.print(Panel(
         Text.from_markup(
-            "[bold cyan]🚀 LLM + SLM Routing Demo[/bold cyan]\n\n"
-            "See how GPT-4o-mini delegates calculations to Qwen-Math-1.5B"
+            "[bold cyan]Side-by-Side Comparison Demo[/bold cyan]\n\n"
+            "Baseline (GPT-4o-mini alone) vs Hybrid (GPT-4o-mini + Qwen-Math-1.5B)"
         ),
         border_style="cyan"
     ))
     
-    examples = [
-        "Natalia sold clips to 48 of her friends in April, and then she sold half as many clips in May. How many clips did Natalia sell altogether in April and May?",
-        "A robe takes 2 bolts of blue fiber and half that much white fiber. How many bolts in total does it take?",
-        "Josh buys a house for $80,000 and puts in $50,000 in repairs. This increased the value by 150%. How much profit did he make?",
-    ]
+    problem = "Josh buys a house for $80,000 and puts in $50,000 in repairs. This increased the value by 150%. How much profit did he make?"
     
-    while True:
-        console.print("\n[bold]Choose:[/bold]")
-        console.print("1. Simple arithmetic problem")
-        console.print("2. Multi-step calculation")
-        console.print("3. Complex word problem")
-        console.print("4. Your own problem")
-        console.print("5. Exit")
-        
-        choice = input("\nChoice (1-5): ").strip()
-        
-        if choice == '5':
-            console.print("\n[bold green]Thanks! 👋[/bold green]")
-            break
-        elif choice in ['1', '2', '3']:
-            await demo_problem(examples[int(choice) - 1])
-        elif choice == '4':
-            custom = input("\nEnter problem: ").strip()
-            if custom:
-                await demo_problem(custom)
-        else:
-            console.print("[red]Invalid choice[/red]")
+    await compare(problem)
+    
+    # Offer to run another
+    console.print("\n" + "="*80 + "\n")
+    another = input("Run with a different problem? (y/n): ").strip().lower()
+    
+    if another == 'y':
+        custom = input("Enter problem: ").strip()
+        if custom:
+            console.print("\n")
+            await compare(custom)
 
 if __name__ == "__main__":
     try:
@@ -162,4 +178,4 @@ if __name__ == "__main__":
         print("Install rich: pip install rich")
         sys.exit(1)
     
-    asyncio.run(interactive_demo())
+    asyncio.run(main())
