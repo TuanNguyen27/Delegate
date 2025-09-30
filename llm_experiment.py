@@ -27,12 +27,12 @@ from utils import (
 # Experiment Runner
 # ---------------------------
 async def run_llm_experiment(test_df: pd.DataFrame, output_file: str, max_tokens: int):
-    """Run baseline experiment with GPT-4o-mini (no tools)"""
+    """Run baseline experiment with GPT-4 (no tools)"""
     load_dotenv()
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     print("\n" + "="*60)
-    print("BASELINE EXPERIMENT: GPT-4o-mini alone (no tools)")
+    print("BASELINE EXPERIMENT: GPT-4 alone (no tools)")
     print("="*60)
     print(f"Running on {len(test_df)} problems")
 
@@ -54,7 +54,7 @@ Problem:
         resp = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=512,
+            max_tokens=128,
             temperature=0
         )
         t_end = time.time()
