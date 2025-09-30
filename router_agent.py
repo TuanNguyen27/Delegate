@@ -32,7 +32,7 @@ def _lazy_load_slm():
         _SLM = AutoModelForCausalLM.from_pretrained(
             _SLM_ID,
             device_map="auto" if device != "cpu" else None,
-            torch_dtype=dtype,
+            dtype=dtype,
             trust_remote_code=True,
         )
         _TOK = AutoTokenizer.from_pretrained(_SLM_ID)
@@ -88,12 +88,15 @@ def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) 
                 **inputs,
                 max_new_tokens=max_new_tokens,
                 do_sample=False,
-                temperature=0.0,
                 pad_token_id=tok.eos_token_id,
             )
         gen = tok.batch_decode(out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
         ans = extract_boxed_or_lastnum(gen)
         _lat = time.time() - t0
+
+        # Debug logging - BEFORE the return
+        print(f"[SLM DEBUG] Output: {gen[:100]}...")
+        print(f"[SLM DEBUG] Extracted answer: {ans}")
 
         # Return properly formatted JSON string
         result_json = json.dumps({
@@ -171,6 +174,9 @@ INSTRUCTIONS = (
     "Example: If you need to compute 15 × 7, call slm_help('What is 15 times 7?')\n"
     "Example: If you need to solve x^2 + 3x - 10 = 0, call slm_help('Solve x^2 + 3x - 10 = 0')\n\n"
     "Always show your reasoning and provide the final answer in \\boxed{} format."
+    "\n\nIMPORTANT: Trust the slm_help tool's calculations. "
+    "Do NOT call the same calculation multiple times. "
+    "If you get an answer from slm_help, use it and move forward with your solution.\n"
 )
 
 agent = Agent(
