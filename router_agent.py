@@ -53,12 +53,19 @@ def extract_boxed_or_lastnum(text: str) -> str:
     return m[-1] if m else ""
 
 def extract_answer_from_slm(text: str) -> str:
-    """Extract answer from SLM output that ends with 'The answer is: X'"""
-    # Try to find "The answer is: X" pattern
+    """Extract answer from SLM output, prioritizing \boxed{} format"""
+    # First try \boxed{} format
+    boxed = re.findall(r"\\boxed\{([^}]+)\}", text)
+    if boxed:
+        answer = boxed[-1].strip()
+        # Extract numbers from the boxed content
+        nums = re.findall(r"-?\d+(?:\.\d+)?", answer)
+        return nums[0] if nums else answer
+    
+    # Then try "The answer is: X" pattern
     m = re.search(r"[Tt]he answer is:?\s*([^\n.]+)", text)
     if m:
         answer = m.group(1).strip()
-        # Extract just numbers/symbols from it
         nums = re.findall(r"-?\d+(?:\.\d+)?", answer)
         return nums[-1] if nums else answer
     
@@ -147,7 +154,7 @@ def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) 
 
 # Wrap the implementation for the Agent SDK
 @function_tool
-def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str:
+def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 512) -> str:
     """
     Solve a high-school math problem with the local Small Language Model (SLM).
     Use this tool for ANY computational or numerical calculation including:
@@ -156,17 +163,56 @@ def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str
     - Algebraic simplifications and expansions
     - Modular arithmetic and number theory calculations
     - Any calculation involving numbers
+    Returns the complete step-by-step solution.
 
     Args:
       question (str): The math problem or calculation to solve.
-      mode (str): "cot" for step-by-step reasoning; "direct" for concise answer. Default is "cot".
-      max_new_tokens (int): Maximum tokens to generate. Default is 256.
+      mode (str): "cot" for step-by-step reasoning; "direct" for concise answer.
+      max_new_tokens (int): Maximum tokens to generate.
 
     Returns:
-      str: JSON string with {"answer": "<value>", "latency_sec": <float>, "reasoning": "<step_by_step>"}
+      str: Complete solution with reasoning and final answer in \boxed{} format
     """
     print(f"[TOOL CALLED] LLM invoked slm_help with question: {question[:60]}...")
-    return _slm_help_impl(question, mode, max_new_tokens)
+    
+    try:
+        model, tok = _lazy_load_slm()
+
+        sys = (
+            "You are a math calculation assistant. "
+            "Solve the problem step by step. "
+            "Put your final answer in \\boxed{} format at the end."
+        )
+        messages = [
+            {"role": "system", "content": sys},
+            {"role": "user", "content": question},
+        ]
+        prompt = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = tok([prompt], return_tensors="pt").to(model.device)
+
+        t0 = time.time()
+        with torch.inference_mode():
+            out = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+                pad_token_id=tok.eos_token_id,
+            )
+        gen = tok.batch_decode(out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
+        _lat = time.time() - t0
+
+        # Log to tracker if it exists
+        try:
+            from router_experiment import tracker
+            tracker.log_tool_call(question, gen, _lat)
+        except ImportError:
+            pass
+        
+        # Return the complete SLM output directly
+        return gen
+        
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 # ---------------------------
 # Agent (LLM controller)
