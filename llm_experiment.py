@@ -5,7 +5,7 @@ Baseline experiment: GPT-4o-mini alone (no tools)
 import time
 import pandas as pd
 import asyncio
-from agents import Agent, Runner
+from agents import Agent, Runner, ModelSettings
 
 from utils import (
     ProblemResult,
