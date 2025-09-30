@@ -29,14 +29,14 @@ from utils import (
 # Qwen Agent (local only)
 # ---------------------------
 class QwenAgent:
-    def __init__(self, model_id="Qwen/Qwen2.5-Math-1.5B-Instruct", max_new_tokens=512):
+    def __init__(self, model_id="Qwen/Qwen2.5-Math-1.5B-Instruct", max_new_tokens=256):
         self.max_new_tokens = max_new_tokens
         print(f"🔥 Loading {model_id} locally...")
         self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_id,
             device_map="auto",
-            torch_dtype=torch.float16,
+            dtype=torch.float16,
             trust_remote_code=True
         )
         print("✅ Model ready (local inference).")
@@ -47,7 +47,6 @@ class QwenAgent:
             outputs = self.model.generate(
                 **inputs,
                 max_new_tokens=self.max_new_tokens,
-                temperature=0.0,
                 do_sample=False,
                 pad_token_id=self.tokenizer.eos_token_id
             )

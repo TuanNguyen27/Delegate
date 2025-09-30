@@ -54,7 +54,7 @@ Problem:
         resp = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=max_tokens,
+            max_tokens=2048,
             temperature=0
         )
         t_end = time.time()
@@ -131,4 +131,10 @@ async def main():
                 test_df = test_df.head(args.sample)
             print(f"Sampled {len(test_df)} problems")
 
-        output_file = f"results_llm
+        output_file = f"results_llm_math500{'_sample' + str(args.sample) if args.sample else ''}.json"
+
+    await run_llm_experiment(test_df, output_file, args.max_tokens)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
