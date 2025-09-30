@@ -1,9 +1,9 @@
-# toy_router_agent.py
+# router_agent.py
 import os, re, time, asyncio, torch, json
 from dotenv import load_dotenv
 
 # OpenAI Agents SDK
-from agents import Agent, function_tool, Runner
+from agents import Agent, function_tool, Runner, ModelSettings
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -104,7 +104,7 @@ def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) 
         
         # Log to tracker if it exists (for evaluation)
         try:
-            from math500_evaluation import tracker
+            from router_experiment import tracker
             tracker.log_tool_call(question, result_json, _lat)
         except ImportError:
             pass  # Tracker not imported, skip logging
@@ -120,7 +120,7 @@ def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) 
         
         # Log error to tracker if it exists
         try:
-            from math500_evaluation import tracker
+            from router_experiment import tracker
             tracker.log_tool_call(question, error_json, 0.0)
         except ImportError:
             pass
@@ -132,14 +132,20 @@ def _slm_help_impl(question: str, mode: str = "cot", max_new_tokens: int = 256) 
 def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str:
     """
     Solve a high-school math problem with the local Small Language Model (SLM).
+    Use this tool for ANY computational or numerical calculation including:
+    - Arithmetic operations (addition, subtraction, multiplication, division)
+    - Solving equations (linear, quadratic, polynomial)
+    - Algebraic simplifications and expansions
+    - Modular arithmetic and number theory calculations
+    - Any calculation involving numbers
 
     Args:
-      question (str): The problem text.
-      mode (str): "cot" for step-by-step; "direct" for concise final answer.
-      max_new_tokens (int): Maximum generated tokens.
+      question (str): The math problem or calculation to solve.
+      mode (str): "cot" for step-by-step reasoning; "direct" for concise answer. Default is "cot".
+      max_new_tokens (int): Maximum tokens to generate. Default is 256.
 
     Returns:
-      str: JSON string with {"answer": "<value>", "reasoning": "<model_output>"}
+      str: JSON string with {"answer": "<value>", "latency_sec": <float>, "reasoning": "<step_by_step>"}
     """
     print(f"[TOOL CALLED] LLM invoked slm_help with question: {question[:60]}...")
     return _slm_help_impl(question, mode, max_new_tokens)
@@ -148,29 +154,30 @@ def slm_help(question: str, mode: str = "cot", max_new_tokens: int = 256) -> str
 # Agent (LLM controller)
 # ---------------------------
 INSTRUCTIONS = (
-    "You are an expert at solving high school competition math problems. "
+    "You are an expert at solving high school competition math problems (MATH dataset level). "
     "IMPORTANT: You MUST use the `slm_help` tool for ANY computational step including:\n"
     "- ALL arithmetic (addition, subtraction, multiplication, division)\n"
     "- Solving equations (linear, quadratic, polynomial)\n"
     "- Algebraic simplifications and expansions\n"
     "- Modular arithmetic and number theory calculations\n"
     "- ANY calculation with numbers\n\n"
-    "Do NOT try to calculate these yourself. Always call slm_help for computational steps.\n"
-    "You should focus on:\n"
-    "- Understanding the problem\n"
-    "- Planning the solution strategy\n"
-    "- Calling slm_help for calculations\n"
-    "- Interpreting results and providing final answer\n\n"
-    "Always provide your final answer in \\boxed{} format."
+    "Do NOT try to calculate these yourself. Always call slm_help for computational steps.\n\n"
+    "Your workflow:\n"
+    "1. Read and understand the problem\n"
+    "2. Plan your solution approach\n"
+    "3. For ANY calculation, call slm_help with the specific computation\n"
+    "4. Interpret the tool's result and continue reasoning\n"
+    "5. Provide your final answer in \\boxed{} format\n\n"
+    "Example: If you need to compute 15 × 7, call slm_help('What is 15 times 7?')\n"
+    "Example: If you need to solve x^2 + 3x - 10 = 0, call slm_help('Solve x^2 + 3x - 10 = 0')\n\n"
+    "Always show your reasoning and provide the final answer in \\boxed{} format."
 )
 
 agent = Agent(
     name="Math Expert Agent",
     instructions=INSTRUCTIONS,
     model="gpt-4o-mini",
-    model_settings=ModelSettings(
-        tokens=2048,
-        tool_choice="required"),
+    model_settings=ModelSettings(max_tokens=2048),
     tools=[slm_help],
 )
 
