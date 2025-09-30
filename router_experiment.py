@@ -1,7 +1,11 @@
 # router_experiment.py
 """
 Router experiment: GPT-4o-mini with SLM tool routing
-Usage: python router_experiment.py [--sample N]
+Works with both MATH500 and GSM8K datasets
+
+Usage: 
+    python router_experiment.py --dataset gsm8k --sample 30
+    python router_experiment.py --dataset math500 --sample 10
 """
 import time
 import pandas as pd
@@ -124,26 +128,51 @@ async def run_router_experiment(test_df: pd.DataFrame):
         for fail in failed_problems:
             print(f"   [{fail['index']}] {fail['subject']}: {fail['error'][:100]}")
     
-    # Save results
-    save_results(results, "results_router.json", summary)
+    # Save to dataset-specific file
+    results_copy = list(results)
+    save_results(results_copy, output_file, summary)
     
-    return summary
+    print(f"\nResults saved to: {output_file}")
 
 # ---------------------------
 # Main
 # ---------------------------
 async def main():
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Run router experiment on MATH500')
+    parser = argparse.ArgumentParser(description='Run router experiment')
+    parser.add_argument('--dataset', type=str, default='math500',
+                       choices=['math500', 'gsm8k'],
+                       help='Dataset to use (default: math500)')
     parser.add_argument('--sample', type=int, default=None,
                        help='Number of problems to sample (default: all)')
     parser.add_argument('--random', action='store_true',
                        help='Random sample instead of first N')
     args = parser.parse_args()
     
-    # Load test data
-    test_df = pd.read_csv("math500/test.csv")
-    print(f"Loaded {len(test_df)} problems from math500/test.csv")
+    # Load appropriate dataset
+    if args.dataset == 'gsm8k':
+        # Generate GSM8K CSV if it doesn't exist or if sampling
+        from gsm8k_loader import load_gsm8k_as_df
+        
+        test_df = load_gsm8k_as_df(
+            split='test',
+            n_samples=args.sample,
+            random_seed=42 if args.random else None
+        )
+        output_file = f"results_router_gsm8k{'_sample' + str(args.sample) if args.sample else ''}.json"
+        
+    else:  # math500
+        test_df = pd.read_csv("math500/test.csv")
+        print(f"Loaded {len(test_df)} problems from math500/test.csv")
+        
+        if args.sample:
+            if args.random:
+                test_df = test_df.sample(n=args.sample, random_state=42)
+            else:
+                test_df = test_df.head(args.sample)
+            print(f"Sampled {len(test_df)} problems")
+        
+        output_file = f"results_router_math500{'_sample' + str(args.sample) if args.sample else ''}.json"
     
     # Check required columns
     required_cols = ["problem", "answer", "subject"]
@@ -152,16 +181,15 @@ async def main():
         print(f"Available columns: {list(test_df.columns)}")
         return
     
-    # Sample if requested
-    if args.sample:
-        if args.random:
-            test_df = test_df.sample(n=args.sample, random_state=42)
-        else:
-            test_df = test_df.head(args.sample)
-        print(f"Sampled {len(test_df)} problems")
-    
     # Run router experiment
-    await run_router_experiment(test_df)
+    summary = await run_router_experiment(test_df)
+    
+    # Update save location
+    save_results(
+        [r for r in tracker.results],
+        output_file,
+        summary
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())
