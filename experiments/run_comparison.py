@@ -1,4 +1,4 @@
-# run_comparison.py
+# experiments/run_comparison.py
 """
 Unified comparison runner for GSM8K experiments
 Runs LLM baseline, Router, and SLM on the SAME samples
@@ -15,7 +15,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from gsm8k_loader import load_gsm8k_as_df
+from tools.gsm8k_loader import load_gsm8k_as_df
 
 
 async def main():
@@ -50,9 +50,9 @@ async def main():
     print(f"✅ Saved samples to {sample_file}")
     
     # Import experiment modules
-    from llm_experiment import run_llm_experiment
-    from router_experiment import run_router_experiment
-    from slm_experiment import run_slm_experiment
+    from experiments.llm_experiment import run_llm_experiment
+    from experiments.router_experiment import run_router_experiment
+    from experiments.slm_experiment import run_slm_experiment
     
     results = {}
     

@@ -1,4 +1,4 @@
-# llm_experiment.py
+# experiments/llm_experiment.py
 """
 LLM Baseline: GPT-4o alone (with token tracking)
 """
@@ -9,7 +9,7 @@ import asyncio
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
-from utils import check_answer, extract_answer
+from experiments.utils import check_answer, extract_answer
 
 # Data class for results
 from dataclasses import dataclass, asdict

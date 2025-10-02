@@ -1,4 +1,4 @@
-# utils.py
+# experiments/utils.py
 """
 Utility functions for MATH500 evaluation experiments
 """

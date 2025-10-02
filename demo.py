@@ -1,4 +1,4 @@
-# demo_router.py
+# demo.py
 """
 Interactive demo of LLM + SLM routing system
 Captures and displays the complete thought process
@@ -64,7 +64,7 @@ async def demo_problem(problem: str):
     log_capture = LogCapture()
     
     # Import here to capture prints
-    from router_agent import run_agent
+    from demo_tool.router_agent_demo import run_agent
     
     # Redirect prints temporarily
     old_stdout = sys.stdout

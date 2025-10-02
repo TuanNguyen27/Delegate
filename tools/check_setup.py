@@ -1,4 +1,4 @@
-# check_setup.py
+# tools/check_setup.py
 """
 Setup checker for GSM8K comparison experiments
 Verifies all dependencies and files are ready

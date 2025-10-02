@@ -1,4 +1,4 @@
-# run_experiment.py
+# experiments/run_experiment.py
 """
 SLM Baseline: Qwen 2.5 alone (with token tracking)
 """
@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass, asdict
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from utils import check_answer, extract_answer
+from experiments.utils import check_answer, extract_answer
 
 @dataclass
 class ProblemResult:
