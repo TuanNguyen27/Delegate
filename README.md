@@ -43,7 +43,7 @@ Tested on GSM8K (grade school math problems, 500 samples):
 ---
 
 ## 🏗️ Work Flow
-![Work Flow](media/workflow.png)
+![Work Flow](media/workflow chart.png)
 
 ---
 
