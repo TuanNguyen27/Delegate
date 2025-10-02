@@ -7,7 +7,7 @@
 
 ---
 
-## Overview
+## ☄️ Overview
 
 **Problem Statement:** LLMs are dealt with many routine and easy tasks that do not fully utilize its capabilities, leading to wasteful token usage
 
@@ -23,7 +23,7 @@
 
 ---
 
-## Results Summary
+## 📊 Results Summary
 
 Tested on GSM8K (grade school math problems, 500 samples):
 
@@ -47,7 +47,7 @@ Tested on GSM8K (grade school math problems, 500 samples):
 
 ---
 
-## Try the Demo
+## 📺 Try the Demo
 
 See the system in action with an interactive terminal demo:
 
@@ -63,7 +63,7 @@ The demo shows real-time delegation between LLM and SLM, displaying tool call to
 
 ---
 
-## Quick Start
+## ⚡️ Quick Start
 
 ### Requirements
 
@@ -107,7 +107,7 @@ Results are saved to `results/results_comparison_*/` with detailed metrics and v
 
 ---
 
-## Project Structure
+## 🗄️ Project Structure
 
 ```
 delegate/
@@ -145,7 +145,7 @@ delegate/
 
 ---
 
-## What's Next?
+## 🎯 What's Next?
 - Evaluate our system on a mixed benchmark (contains both easy + difficult math questions)
 - Optimize SLM for inference speed and see if it reduces latency in our framework
 - Provide LLM with simple tool functions (e.g. calculator) to force it to only delegate harder questions to SLM
@@ -153,13 +153,13 @@ delegate/
 
 ---
 
-## License
+## 📁 License
 
 MIT License - see LICENSE file for details
 
 ---
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
 - **OpenAI** for GPT-4o API
 - **Alibaba Qwen Team** for Qwen2.5-Math-1.5B-Instruct model
