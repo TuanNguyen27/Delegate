@@ -29,3 +29,34 @@ checkpoints/
 # Hugging Face / Transformers cache
 .hf_cache/
 transformers_cache/
+
+# === Add these for your project ===
+
+# Experiment results
+results_*/
+*.json
+
+# Generated datasets
+gsm8k_test.csv
+*_test.csv
+
+# Demo recordings
+*.mp4
+*.mov
+*.avi
+*.gif
+demo_*.svg
+demo_*.html
+
+# Model weights (if downloaded locally)
+models/
+*.bin
+*.safetensors
+
+# Backup folders
+archive/
+backup/
+*_backup/
+
+# Google Drive mount (Colab)
+drive/
