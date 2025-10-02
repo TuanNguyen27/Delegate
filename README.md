@@ -1,6 +1,6 @@
 # Delegate 
 
-> GPT-4o to reason and delegate easier sub-tasks to a Small Language Model (Qwen-2.5-math-instruct-1b) to save costs
+> A framework that prompts an LLM to reason and delegate appropriate sub-tasks to an SLM to save costs
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
