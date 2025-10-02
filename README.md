@@ -7,7 +7,7 @@
 
 ---
 
-## 🎯 Overview
+## Overview
 
 **Problem Statement:** LLMs are dealt with many routine and easy tasks that do not fully utilize its capabilities, leading to wasteful token usage
 
@@ -23,7 +23,7 @@
 
 ---
 
-## 📊 Results Summary
+## Results Summary
 
 Tested on GSM8K (grade school math problems, 500 samples):
 
@@ -47,109 +47,105 @@ Tested on GSM8K (grade school math problems, 500 samples):
 
 ---
 
-## 🚀 Quick Start
+## Try the Demo
 
-### Prerequisites
+See the system in action with an interactive terminal demo:
 
+```bash
+git clone https://github.com/yourusername/delegate
+cd delegate
+pip install -r requirements.txt
+echo "OPENAI_API_KEY=sk-your-key" > .env
+python demo.py
+```
+
+The demo shows real-time delegation between LLM and SLM, displaying tool call to SLM and its reasoning process.
+
+---
+
+## Quick Start
+
+### Requirements
+
+**Hardware:**
+- GPU recommended (CUDA or Apple MPS) for Qwen2.5-Math-1.5B
+- CPU works but 5-10x slower
+- 3GB disk space for model weights
+
+**Software:**
 - Python 3.8+
-- CUDA-capable GPU (recommended for Qwen2.5-Math-1.5B, but CPU works)
-- OpenAI API key
-
-**Note:** This implementation is specifically designed for **mathematical problem-solving** using Qwen2.5-Math-1.5B-Instruct. For other domains, you'll need to adapt the specialist model and tool definitions.
+- OpenAI API key ([get one here](https://platform.openai.com/api-keys))
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone <your-repo>
-cd llm-slm-router
+# Clone repository
+git clone https://github.com/yourusername/delegate
+cd delegate
 
 # Install dependencies
-pip install torch transformers openai pandas datasets python-dotenv openai-agents
+pip install -r requirements.txt
 
-# Set up environment
+# Set up API key
 echo "OPENAI_API_KEY=sk-your-key-here" > .env
+
+# Verify setup
+python tools/check_setup.py
 ```
 
-### Verify Setup
-
-```bash
-python check_setup.py
-```
-
-Should show all ✓ (green checks). The HuggingFace cache warning is normal - models download on first run.
-
----
-
-## 🧪 Running Experiments
-
-### Option 1: Full Comparison (Recommended)
-
-Compare all three approaches on **identical samples**:
+### Run Experiments
 
 ```bash
 # Quick test (10 samples, ~5 minutes)
-python run_comparison.py --samples 10 --seed 123
+python experiments/run_comparison.py --samples 10 --seed 123
 
-# Medium run (50 samples, ~25 minutes)
-python run_comparison.py --samples 50 --seed 123
-
-# Full benchmark (200 samples, ~100 minutes)
-python run_comparison.py --samples 200 --seed 123
+# Full benchmark (500 samples, ~2-3 hours)
+python experiments/run_comparison.py --samples 500 --seed 123
 ```
 
-**Output:** Creates `results_comparison_Nsamples_TIMESTAMP/` folder with:
-- `samples.csv` - The exact problems tested
-- `results_llm.json` - GPT-4o baseline results
-- `results_router.json` - Router system results
-- `results_slm.json` - Qwen baseline results
-- `comparison.json` - Summary statistics
-
-### Option 2: Individual Experiments
-
-Run experiments separately (useful for debugging):
-
-```bash
-# LLM baseline only
-python llm_experiment_v2.py --dataset gsm8k --sample 50
-
-# Router only
-python router_experiment_v2.py --dataset gsm8k --sample 50
-
-# SLM baseline only
-python slm_experiment_v2.py --dataset gsm8k --sample 50
-```
+Results are saved to `results/results_comparison_*/` with detailed metrics and visualizations.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
-.
-├── README.md                      # This file
-├── run_comparison.py              # Main orchestrator
-├── llm_experiment_v2.py           # GPT-4o baseline
-├── router_experiment_v2.py        # Router experiment runner
-├── router_agent_v2.py             # Router agent definition
-├── slm_experiment_v2.py           # Qwen baseline
-├── gsm8k_loader.py                # Dataset loader
-├── utils.py                       # Answer checking utilities
-├── check_setup.py                 # Setup validator
-├── analyze_results.py             # Results analyzer
-├── format_for_presentation.py     # Presentation formatter
-├── .env                           # API keys (create this)
-└── results_comparison_*/          # Experiment outputs
-    ├── samples.csv
-    ├── results_llm.json
-    ├── results_router.json
-    ├── results_slm.json
-    ├── comparison.json
-    └── comparison_plots.png
+delegate/
+├── demo.py                    # Interactive demo (start here)
+├── router_agent_demo.py            # Core routing logic
+├── README.md
+├── LICENSE
+├── requirements.txt
+├── .gitignore
+├── .env                       # Your API key (create this)
+│
+├── experiments/               # Benchmarking scripts
+│   ├── run_comparison.py      # Compare all 3 approaches
+│   ├── llm_experiment.py      # GPT-4o baseline
+│   ├── router_experiment.py   # Router system
+│   ├── slm_experiment.py      # Qwen baseline
+│   ├── gsm8k_loader.py        # Dataset loader
+│   └── utils.py               # Answer checking utilities
+│
+├── tools/                     # Helper utilities
+│   ├── check_setup.py         # Verify installation
+│   └── analyze_results.py     # Generate charts from results
+|   └── gsm8k_loader.py        # Load GSM8K dataset
+│
+│
+└── media/                     # Images and assets
+    └── workflow.png
 ```
+
+**Key files:**
+- `demo.py` - Interactive demo showing the system in action
+- `experiments/run_comparison.py` - Run benchmarks on GSM8K
+- `tools/analyze_results.py` - Visualize experiment results
+- `router_agent.py` - Core delegation logic and tool definitions
 
 ---
 
-## 🔬 What's Next?
+## What's Next?
 - Evaluate our system on a mixed benchmark (contains both easy + difficult math questions)
 - Optimize SLM for inference speed and see if it reduces latency in our framework
 - Provide LLM with simple tool functions (e.g. calculator) to force it to only delegate harder questions to SLM
@@ -157,15 +153,15 @@ python slm_experiment_v2.py --dataset gsm8k --sample 50
 
 ---
 
-## 📄 License
+## License
 
 MIT License - see LICENSE file for details
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- **OpenAI** for GPT-4o-mini API
+- **OpenAI** for GPT-4o API
 - **Alibaba Qwen Team** for Qwen2.5-Math-1.5B-Instruct model
 - **HuggingFace** for model hosting and transformers library
 - **GSM8K** dataset creators (Cobbe et al., 2021)
