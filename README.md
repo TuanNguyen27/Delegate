@@ -112,7 +112,7 @@ Results are saved to `results/results_comparison_*/` with detailed metrics and v
 ```
 delegate/
 ├── demo.py                    # Interactive demo (start here)
-├── router_agent_demo.py            # Core routing logic
+├── router_agent_demo.py            # Core routing logic (w/out metric tracking)
 ├── README.md
 ├── LICENSE
 ├── requirements.txt
@@ -124,13 +124,13 @@ delegate/
 │   ├── llm_experiment.py      # GPT-4o baseline
 │   ├── router_experiment.py   # Router system
 │   ├── slm_experiment.py      # Qwen baseline
-│   ├── gsm8k_loader.py        # Dataset loader
+│   ├── router_agent.py        # Core routing logic (w/ metric tracking)
 │   └── utils.py               # Answer checking utilities
 │
 ├── tools/                     # Helper utilities
 │   ├── check_setup.py         # Verify installation
 │   └── analyze_results.py     # Generate charts from results
-|   └── gsm8k_loader.py        # Load GSM8K dataset
+|   └── gsm8k_loader.py        # GSM8K dataset loader
 │
 │
 └── media/                     # Images and assets
