@@ -1,6 +1,0 @@
-# configs/math500.yaml
-dataset: HuggingFaceH4/MATH-500
-split: test
-n_samples: 10   # change to None or full size if you want all 500
-seed: 123
-output_dir: Outputs/math500
