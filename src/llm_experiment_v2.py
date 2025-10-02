@@ -1,3 +1,4 @@
+# llm_experiment_v2.py
 """
 LLM Baseline: GPT-4o alone (with token tracking)
 """
@@ -49,7 +50,7 @@ Problem: {row['problem']}"""
 
         t_start = time.time()
         resp = await client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=max_tokens,
             temperature=0

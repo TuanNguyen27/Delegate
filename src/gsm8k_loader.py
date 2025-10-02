@@ -1,6 +1,6 @@
 # gsm8k_loader.py
 """
-Load and prepare GSM8K dataset for evaluation
+Load and prepare GSM8K dataset for evaluations
 """
 import re
 from datasets import load_dataset

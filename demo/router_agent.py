@@ -27,7 +27,7 @@ def _lazy_load_slm():
         _SLM = AutoModelForCausalLM.from_pretrained(
             _SLM_ID,
             device_map="auto" if device != "cpu" else None,
-            dtype=dtype,
+            torch_dtype=dtype,
             trust_remote_code=True,
         )
         _TOK = AutoTokenizer.from_pretrained(_SLM_ID)
@@ -39,16 +39,7 @@ def _lazy_load_slm():
 # ---------------------------
 @function_tool
 def slm_help(question: str) -> str:
-    """
-    Solve a mathematical calculation using a specialized math model.
-    Returns a definitive answer that should be trusted immediately.
-    
-    Args:
-        question: The specific calculation to perform (e.g., "What is 520 + 650?")
-    
-    Returns:
-        Definitive answer in format "CALCULATION COMPLETE: The answer is X"
-    """
+    """Solve a mathematical calculation using a specialized math model."""
     print(f"[TOOL CALLED] slm_help: {question[:60]}...")
     
     try:
@@ -76,30 +67,19 @@ def slm_help(question: str) -> str:
         gen = tok.batch_decode(out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
         latency = time.time() - t0
 
-        # Print full SLM output for debugging
         print(f"[SLM OUTPUT] Time: {latency:.2f}s")
         print(f"[SLM OUTPUT] Full response:\n{gen}\n")
 
         # Extract the boxed answer
         match = re.search(r'\\boxed\{([^}]+)\}', gen)
-        
-        # Log to tracker - import at call time to avoid circular import
-        try:
-            import sys
-            if 'router_experiment' in sys.modules:
-                from router_experiment import tracker
-                tracker.log_tool_call(question, gen, latency)
-                print(f"[TRACKER] Logged tool call (latency: {latency:.2f}s)")
-        except Exception as e:
-            print(f"[TRACKER] Failed to log: {e}")
 
         if match:
             answer = match.group(1)
-            result = f"CALCULATION COMPLETE: The answer to '{question}' is {answer}. Use this value directly in your solution."
+            result = f"CALCULATION COMPLETE: The answer to '{question}' is {answer}."
             print(f"[SLM RESULT] Extracted answer: {answer}")
             return result
         else:
-            result = f"CALCULATION COMPLETE: {gen}\n\nUse the final result from above in your solution."
+            result = f"CALCULATION COMPLETE: {gen}"
             print(f"[SLM RESULT] No boxed answer found, returning full output")
             return result
         
@@ -111,26 +91,11 @@ def slm_help(question: str) -> str:
 # ---------------------------
 INSTRUCTIONS = (
     "You solve high school math competition problems.\n\n"
-    
     "WORKFLOW:\n"
     "1. Understand the problem\n"
-    "2. For ANY calculation, call slm_help ONCE with that exact calculation\n"
-    "3. When you receive 'CALCULATION COMPLETE:', the tool has finished\n"
-    "4. Extract the answer provided and USE IT immediately\n"
-    "5. Continue with your solution using that result\n"
-    "6. Provide your final answer in \\boxed{}\n\n"
-    
-    "CRITICAL RULES:\n"
-    "• Call slm_help for ALL arithmetic, algebra, combinatorics\n"
-    "• When you see 'CALCULATION COMPLETE:', the calculation is DONE\n"
-    "• NEVER call slm_help again for the same calculation\n"
-    "• Use the provided answer immediately - do NOT verify or retry\n"
-    "• After you have your final answer, write \\boxed{answer} and STOP\n\n"
-    
-    "Example:\n"
-    "You: slm_help('What is 26 times 10?')\n"
-    "Tool: CALCULATION COMPLETE: The answer to 'What is 26 times 10?' is 260.\n"
-    "You: Use 260 in the next step. Do NOT call slm_help again for 26*10."
+    "2. For ANY calculation, call slm_help ONCE\n"
+    "3. When you receive 'CALCULATION COMPLETE:', use that answer\n"
+    "4. Provide your final answer in \\boxed{}\n\n"
 )
 
 agent = Agent(
@@ -147,27 +112,3 @@ agent = Agent(
 async def run_agent(question: str):
     result = await Runner.run(agent, question, max_turns=15)
     return result.final_output
-
-# Test
-async def main():
-    qs = [
-        "If 3x + 5 = 20, what is x?",
-        "What is 520 + 650?",
-        "Calculate 26 choose 2"
-    ]
-
-    for q in qs:
-        print(f"\n{'='*60}")
-        print(f"Q: {q}")
-        out = await run_agent(q)
-        print(f"Answer: {out}")
-        print(f"{'='*60}")
-
-if __name__ == "__main__":
-    try:
-        get_ipython()
-        import nest_asyncio
-        nest_asyncio.apply()
-        asyncio.run(main())
-    except NameError:
-        asyncio.run(main())

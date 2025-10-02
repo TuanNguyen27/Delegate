@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# demo_router.py
 """
 Interactive demo of LLM + SLM routing system
 Captures and displays the complete thought process

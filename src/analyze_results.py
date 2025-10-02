@@ -1,3 +1,4 @@
+# analyze_results.py
 """
 Analyze and visualize comparison results
 Usage: python analyze_results.py results_comparison_200samples_20250930_143022

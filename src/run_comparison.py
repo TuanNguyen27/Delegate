@@ -1,3 +1,4 @@
+# run_comparison.py
 """
 Unified comparison runner for GSM8K experiments
 Runs LLM baseline, Router, and SLM on the SAME samples
