@@ -1,4 +1,4 @@
-# router_agent_v2.py
+# router_agent.py
 """
 Router Agent with token tracking
 """
@@ -85,8 +85,8 @@ def slm_help(question: str) -> str:
         # Log to tracker
         try:
             import sys as _sys
-            if 'router_experiment_v2' in _sys.modules:
-                from router_experiment_v2 import tracker
+            if 'router_experiment' in _sys.modules:
+                from router_experiment import tracker
                 tracker.log_tool_call(question, gen, latency, input_tokens, output_tokens)
                 print(f"[TRACKER] Logged: {latency:.2f}s, {input_tokens}→{output_tokens} tokens")
         except Exception as e:
@@ -127,7 +127,7 @@ INSTRUCTIONS = (
 agent = Agent(
     name="Math Router",
     instructions=INSTRUCTIONS,
-    model="gpt-4o-mini",
+    model="gpt-4o",
     model_settings=ModelSettings(
         max_tokens=512,
         parallel_tool_calls=False

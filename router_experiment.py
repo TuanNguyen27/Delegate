@@ -1,4 +1,4 @@
-# router_experiment_v2.py
+# router_experiment.py
 """
 Router Experiment: GPT-4o + Qwen tool (with token tracking)
 """
@@ -60,7 +60,7 @@ async def run_router_experiment(test_df: pd.DataFrame, output_file: str, max_tok
     """Run router experiment with token tracking"""
     
     # Import agent (will be used with tracking)
-    from router_agent_v2 import agent
+    from router_agent import agent
     
     print(f"Running Router on {len(test_df)} problems (max_tokens={max_tokens})")
     

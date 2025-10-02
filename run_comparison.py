@@ -50,9 +50,9 @@ async def main():
     print(f"✅ Saved samples to {sample_file}")
     
     # Import experiment modules
-    from llm_experiment_v2 import run_llm_experiment
-    from router_experiment_v2 import run_router_experiment
-    from slm_experiment_v2 import run_slm_experiment
+    from llm_experiment import run_llm_experiment
+    from router_experiment import run_router_experiment
+    from slm_experiment import run_slm_experiment
     
     results = {}
     
