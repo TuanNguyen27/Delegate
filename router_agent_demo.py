@@ -39,7 +39,9 @@ def _lazy_load_slm():
 # ---------------------------
 @function_tool
 def slm_help(question: str) -> str:
-    """Solve a mathematical calculation using a specialized math model."""
+    """Use the Small Math Model (SLM) to solve algebra, geometry, or multi-step subproblems.
+    It is especially good at symbolic manipulation, quadratic solving, factoring, and 
+    structured step-by-step calculation. Return the boxed answer at the end."""
     print(f"[TOOL CALLED] slm_help: {question[:60]}...")
     
     try:
@@ -93,9 +95,9 @@ INSTRUCTIONS = (
     "You solve high school math competition problems.\n\n"
     "WORKFLOW:\n"
     "1. Understand the problem\n"
-    "2. For ANY calculation, call slm_help ONCE\n"
-    "3. When you receive 'CALCULATION COMPLETE:', use that answer\n"
-    "4. Provide your final answer in \\boxed{}\n\n"
+    "2. If a sub-task involves airthmetic calculations, algebraic solving, equation manipulation, or lengthy calculation, call slm_help with that sub-task.\n"
+    "3. Integrate the SLM’s answer into your reasoning\n"
+    "4. Provide the final answer in \\boxed{}\n\n"
 )
 
 agent = Agent(
