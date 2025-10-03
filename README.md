@@ -26,19 +26,20 @@
 ## 📊 Results Summary
 
 Tested on GSM8K (grade school math problems, 500 samples):
+![Results](media/results.png)
 
-| Method | Accuracy | Avg Latency | Cost/150 | Token Usage |
+| Method | Accuracy | Avg Latency | Avg Total Tokens |
 |--------|----------|-------------|----------|-------------|
-| **GPT-4o Only** | 88% | 9.2s | $1.35 | 17,500 tokens |
-| **Router (Ours)** | 81% | 13.5s | **$0.24** ✓ | 4,200 tokens ✓ |
-| **Qwen Only** | 76% | 8.5s | Free | 14,800 tokens |
+| **GPT-4o Only** | 86.40% | 5.24s | 398.7 |
+| **Router (Ours)** | **88.20%** ✓ | 12.56 | **82.7** ✓ |
+| **Qwen Only** | 82.4% | 8.85s | 80.7 | 386.1 |
 
 **Key Findings:**
-- ✅ **82% cost reduction** ($1.35 → $0.24 per 150 problems)
-- ✅ **76% fewer tokens** (17,500 → 4,200 tokens)
-- ✅ Only 7% accuracy drop (88% → 81%)
-- ⚠️ Trade: +47% latency (orchestration overhead)
-- ⚡ Averages 1.0 tool calls per problem
+- ✅ **~80% token reduction** (398.7 -> 82.7)
+- ✅ 1.8% accuracy imporvement over GPT-4o (88.2% vs. 86.4%)
+- ⚠️ Trade: +140% slower (12.6s vs. 5.2s)
+- Averages 1.16 tool calls per problem
+- Average 7.2s latency for SLM during tool call
 
 ---
 
@@ -111,7 +112,7 @@ Results are saved to `results/results_comparison_*/` with detailed metrics and v
 
 ```
 delegate/
-├── demo.py                    # Interactive demo (start here)
+├── demo.py                    # Interactive demo
 ├── router_agent_demo.py            # Core routing logic (w/out metric tracking)
 ├── README.md
 ├── LICENSE
