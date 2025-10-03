@@ -27,7 +27,7 @@ def _lazy_load_slm():
         _SLM = AutoModelForCausalLM.from_pretrained(
             _SLM_ID,
             device_map="auto" if device != "cpu" else None,
-            torch_dtype=dtype,
+            dtype=dtype,
             trust_remote_code=True,
         )
         _TOK = AutoTokenizer.from_pretrained(_SLM_ID)
