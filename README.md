@@ -25,21 +25,18 @@
 
 ## 📊 Results Summary
 
-Tested on GSM8K (grade school math problems, 500 samples):
-![Results](media/results.png)
-
-| Method | Accuracy | Avg Latency | Avg Total Tokens |
-|--------|----------|-------------|----------|-------------|
-| **GPT-4o Only** | 86.40% | 5.24s | 398.7 |
-| **Router (Ours)** | **88.20%** ✓ | 12.56 | **82.7** ✓ |
-| **Qwen Only** | 82.4% | 8.85s | 80.7 | 386.1 |
+| Method           | Accuracy | Avg Latency | Avg Total Tokens |
+|------------------|----------|-------------|------------------|
+| **GPT-4o Only**  | 86.40%   | 5.24s       | 398.7            |
+| **Router (Ours)**| **88.20%** ✓ | 12.56s | **82.7** ✓        |
+| **Qwen Only**    | 82.40%   | 8.85s       | 386.1            |
 
 **Key Findings:**
 - ✅ **~80% token reduction** (398.7 -> 82.7)
 - ✅ 1.8% accuracy imporvement over GPT-4o (88.2% vs. 86.4%)
 - ⚠️ Trade: +140% slower (12.6s vs. 5.2s)
 - Averages 1.16 tool calls per problem
-- Average 7.2s latency for SLM during tool call
+- Averages 7.2s latency for SLM during tool call
 
 ---
 
