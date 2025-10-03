@@ -24,6 +24,7 @@
 ---
 
 ## 📊 Results Summary
+![Results](media/results.png)
 
 | Method           | Accuracy | Avg Latency | Avg Total Tokens |
 |------------------|----------|-------------|------------------|
