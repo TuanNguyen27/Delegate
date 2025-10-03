@@ -64,7 +64,7 @@ async def demo_problem(problem: str):
     log_capture = LogCapture()
     
     # Import here to capture prints
-    from demo_tool.router_agent_demo import run_agent
+    from router_agent_demo import run_agent
     
     # Redirect prints temporarily
     old_stdout = sys.stdout
