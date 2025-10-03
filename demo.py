@@ -122,7 +122,7 @@ async def interactive_demo():
     console.print(Panel(
         Text.from_markup(
             "[bold cyan]🚀 LLM + SLM Routing Demo[/bold cyan]\n\n"
-            "See how GPT-4o-mini delegates calculations to Qwen-Math-1.5B"
+            "See how GPT-4o delegates 'easier' tasks to Qwen-Math-1.5B"
         ),
         border_style="cyan"
     ))
