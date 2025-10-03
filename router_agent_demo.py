@@ -39,10 +39,17 @@ def _lazy_load_slm():
 # ---------------------------
 @function_tool
 def slm_help(question: str) -> str:
-    """Use the Small Math Model (SLM) to solve algebra, geometry, or easy arithmetic subproblems.
-    It is especially good at symbolic manipulation, quadratic solving, factoring, and 
-    structured step-by-step calculation. Return the boxed answer at the end."""
-    print(f"[TOOL CALLED] slm_help: {question[:60]}...")
+    """
+    Solve a mathematical calculation using specialized math model.
+    Returns definitive answer that should be trusted immediately.
+    
+    Args:
+        question: The calculation to perform
+    
+    Returns:
+        Definitive answer in format "CALCULATION COMPLETE: answer"
+    """
+    print(f"[TOOL] slm_help: {question[:60]}...")
     
     try:
         model, tok = _lazy_load_slm()
@@ -92,12 +99,20 @@ def slm_help(question: str) -> str:
 # Agent
 # ---------------------------
 INSTRUCTIONS = (
-    "You solve high school math competition problems.\n\n"
+    "You solve math problems step by step.\n\n"
+    
     "WORKFLOW:\n"
     "1. Understand the problem\n"
-    "2. If a sub-task involves ANY airthmetic calculations, algebraic solving, equation manipulation, or lengthy calculation, call slm_help with that sub-task.\n"
-    "3. Integrate the SLM’s answer into your reasoning\n"
-    "4. Provide the final answer in \\boxed{}\n\n"
+    "2. For ANY calculation, call slm_help ONCE\n"
+    "3. When you receive 'CALCULATION COMPLETE:', use that answer\n"
+    "4. NEVER call slm_help again for the same calculation\n"
+    "5. Provide final answer in \\boxed{}\n\n"
+    
+    "CRITICAL:\n"
+    "• Call slm_help for ALL arithmetic/algebra\n"
+    "• Trust 'CALCULATION COMPLETE' results immediately\n"
+    "• Do NOT verify or retry calculations\n"
+    "• After final answer, write \\boxed{answer} and STOP"
 )
 
 agent = Agent(
