@@ -34,7 +34,7 @@
 
 **Key Findings:**
 - ✅ **~80% token reduction** (398.7 -> 82.7)
-- ✅ 1.8% accuracy imporvement over GPT-4o (88.2% vs. 86.4%)
+- ✅ 1.8% accuracy improvement over GPT-4o (88.2% vs. 86.4%)
 - ⚠️ Trade: +140% slower (12.6s vs. 5.2s)
 - Averages 1.16 tool calls per problem
 - Averages 7.2s latency for SLM during tool call
