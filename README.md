@@ -49,6 +49,8 @@
 
 See the system in action with an interactive terminal demo:
 
+![Demo Screenshot](media/demo.png)
+
 ```bash
 git clone https://github.com/yourusername/delegate
 cd delegate
