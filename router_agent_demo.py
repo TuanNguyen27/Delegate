@@ -118,9 +118,9 @@ INSTRUCTIONS = (
 agent = Agent(
     name="Math Expert Agent",
     instructions=INSTRUCTIONS,
-    model="gpt-4o-mini",
+    model="gpt-4o",
     model_settings=ModelSettings(
-        max_tokens=2048,
+        max_tokens=512,
         parallel_tool_calls=False
     ),
     tools=[slm_help],
