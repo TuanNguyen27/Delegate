@@ -47,7 +47,7 @@
 ---
 
 ## 📺 Demo
-<video src="media/demo.mp4" controls width="700"></video>
+[![Watch the demo](https://img.youtube.com/vi/minun1uOmSI/0.jpg)](https://youtu.be/minun1uOmSI)
 
 ### Try it yourself!
 
