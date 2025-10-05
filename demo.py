@@ -89,6 +89,9 @@ async def demo_problem(problem: str):
         sys.stdout = old_stdout
         sys.stderr = old_stderr
         
+        # Debug: Show all captured logs
+        console.print(f"[dim]Debug: Captured {len(log_capture.logs)} log lines[/dim]")
+        
         # Display captured tool calls
         if captured_logs:
             console.print(f"[bold green]🔧 Tool Calls: {len(captured_logs)}[/bold green]\n")
@@ -148,35 +151,31 @@ async def interactive_demo():
     
     examples = [
         "What is 156 + 243?",
-        "If I buy 3 shirts at $15 each, what's the total cost?",
         "Natalia sold clips to 48 of her friends in April, and then she sold half as many clips in May. How many clips did Natalia sell altogether in April and May?",
-        "A robe takes 2 bolts of blue fiber and half that much white fiber. How many bolts in total does it take?",
         "Josh buys a house for $80,000 and puts in $50,000 in repairs. This increased the value by 150%. How much profit did he make?",
     ]
     
     while True:
         console.print("\n[bold]Choose:[/bold]")
-        console.print("1. Pure calculation (156 + 243)")
-        console.print("2. Simple word problem (shirts)")
-        console.print("3. Multi-step calculation (Natalia's clips)")
-        console.print("4. Two-step reasoning (robe bolts)")
-        console.print("5. Complex profit calculation")
-        console.print("6. Your own problem")
-        console.print("7. Exit")
+        console.print("1. One-step Computation")
+        console.print("2. Multi-step Problem")
+        console.print("3. Complex Multi-step Problem")
+        console.print("4. Your own problem")
+        console.print("5. Exit")
         
-        choice = input("\nChoice (1-7): ").strip()
+        choice = input("\nChoice (1-5): ").strip()
         
-        if choice == '7':
-            console.print("\n[bold green]Thanks! 👋[/bold green]")
-            break
-        elif choice in ['1', '2', '3', '4', '5']:
+        if choice in ['1', '2', '3']:
             await demo_problem(examples[int(choice) - 1])
-        elif choice == '6':
+        elif choice == '4':
             custom = input("\nEnter problem: ").strip()
             if custom:
-                await demo_problem(custom)
-        else:
-            console.print("[red]Invalid choice[/red]")
+                await demo_problem(custom)  
+        elif choice == '5':
+            console.print("\n[bold green]Thanks! 👋[/bold green]")
+            break         
+        else: 
+            console.print("[red]Invalid choice[/red]")   
 
 if __name__ == "__main__":
     try:
