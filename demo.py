@@ -152,7 +152,7 @@ async def interactive_demo():
         console.print("4. Your own problem")
         console.print("5. Exit")
         
-        choice = input("\nChoice (1-7): ").strip()
+        choice = input("\nChoice (1-5): ").strip()
         
         if choice in ['1', '2', '3']:
             await demo_problem(examples[int(choice) - 1])
