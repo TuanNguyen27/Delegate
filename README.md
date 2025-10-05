@@ -144,10 +144,9 @@ delegate/
 ---
 
 ## 🎯 What's Next?
-- Evaluate our system on a mixed benchmark (contains both easy + difficult math questions)
-- Optimize SLM for inference speed and see if it reduces latency in our framework
-- Provide LLM with simple tool functions (e.g. calculator) to force it to only delegate harder questions to SLM
-- Evaluate on other domains (e.g. coding)
+• Expand Routing: Route tasks based on SLM performance strengths.
+• Optimize Latency: Improve SLM inference speed
+• Expand Domains: Extend evaluation to more 'agentic' tasks (e.g. Deep Search)
 
 ---
 
