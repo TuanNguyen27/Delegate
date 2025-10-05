@@ -46,11 +46,10 @@
 
 ---
 
-## 📺 Try the Demo
+## 📺 Demo
+<video src="media/demo.mp4" controls width="700"></video>
 
-See the system in action with an interactive terminal demo:
-
-![Demo Screenshot](media/demo.png)
+### Try it yourself!
 
 ```bash
 git clone https://github.com/yourusername/delegate
