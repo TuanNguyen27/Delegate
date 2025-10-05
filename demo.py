@@ -146,7 +146,7 @@ async def interactive_demo():
     
     while True:
         console.print("\n[bold]Choose:[/bold]")
-        console.print("1. One-step Arithmetic Calculation")
+        console.print("1. One-step Computation")
         console.print("2. Multi-step Problem")
         console.print("3. Complex Multi-step Problem")
         console.print("4. Your own problem")

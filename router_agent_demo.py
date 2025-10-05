@@ -135,7 +135,6 @@ Problem: "Natalia sold 48 clips in April and half as many in May. Total?"
 ## Remember:
 - ALWAYS use the tool for calculations
 - NEVER compute anything yourself
-- Trust the tool's results completely
 - Present final answer as \\boxed{answer}
 """
 
@@ -144,9 +143,9 @@ agent = Agent(
     instructions=INSTRUCTIONS,
     model="gpt-4o",
     model_settings=ModelSettings(
-        max_tokens=1024,
+        max_tokens=512,
         parallel_tool_calls=False,
-        temperature=0  # More deterministic
+        temperature=0 
     ),
     tools=[slm_help],
 )
