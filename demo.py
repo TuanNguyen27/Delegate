@@ -1,4 +1,3 @@
-# demo.py
 """
 Interactive demo of LLM + SLM routing system
 Captures and displays the complete thought process
@@ -28,14 +27,16 @@ class LogCapture:
         if text.strip():
             self.logs.append(text)
             
-            # Parse for tool calls
-            if '[TOOL CALLED]' in text:
-                question = text.split(':', 1)[1].strip() if ':' in text else text
+            # Parse for tool calls - FIX: Match actual print from tool
+            if '[TOOL] slm_help:' in text:
+                question = text.split('slm_help:', 1)[1].strip() if 'slm_help:' in text else text
                 self.current_call = {'question': question, 'output': '', 'answer': ''}
             
             elif '[SLM OUTPUT] Full response:' in text:
                 if self.current_call:
-                    self.current_call['output'] = text.split('Full response:\n', 1)[1].strip() if 'Full response:\n' in text else ''
+                    # Capture everything after the marker
+                    remaining = text.split('Full response:', 1)[1].strip() if 'Full response:' in text else ''
+                    self.current_call['output'] = remaining
             
             elif '[SLM RESULT] Extracted answer:' in text:
                 if self.current_call:
@@ -60,19 +61,25 @@ async def demo_problem(problem: str):
     
     console.print("\n[bold yellow]🤖 LLM is analyzing the problem...[/bold yellow]\n")
     
-    # Capture output while running
-    log_capture = LogCapture()
-    
     # Import here to capture prints
     from router_agent_demo import run_agent
     
+    # Capture output while running
+    log_capture = LogCapture()
+    
     # Redirect prints temporarily
     old_stdout = sys.stdout
+    old_stderr = sys.stderr
     sys.stdout = log_capture
+    sys.stderr = log_capture  # Also capture stderr
     
     try:
         result = await run_agent(problem)
         sys.stdout = old_stdout
+        sys.stderr = old_stderr
+        
+        # Debug: Show all captured logs
+        console.print(f"[dim]Debug: Captured {len(log_capture.logs)} log lines[/dim]")
         
         # Display captured tool calls
         if captured_logs:
@@ -104,7 +111,8 @@ async def demo_problem(problem: str):
                 ))
                 console.print()
         else:
-            console.print("[yellow]ℹ️  No tool calls - LLM solved directly[/yellow]\n")
+            console.print("[yellow]⚠️  No tool calls detected - LLM may have solved directly or tool wasn't invoked[/yellow]")
+            console.print("[dim]Debug: Check if the agent's instructions are being followed[/dim]\n")
         
         # Final answer
         console.print(Panel(
@@ -115,21 +123,24 @@ async def demo_problem(problem: str):
         
     except Exception as e:
         sys.stdout = old_stdout
+        sys.stderr = old_stderr
         console.print(f"\n[bold red]❌ Error:[/bold red] {str(e)}", style="bold red")
+        import traceback
+        traceback.print_exc()
 
 async def interactive_demo():
     """Interactive demo mode"""
     console.print(Panel(
         Text.from_markup(
             "[bold cyan]🚀 LLM + SLM Routing Demo[/bold cyan]\n\n"
-            "See how GPT-4o delegates 'easier' tasks to Qwen-Math-1.5B"
+            "See how GPT-4o delegates math tasks to Qwen-Math-1.5B"
         ),
         border_style="cyan"
     ))
     
     examples = [
-        "What is 156 + 243?",  # Pure calculation - forces tool call
-        "If I buy 3 shirts at $15 each, what's the total cost?",  # Simple word problem
+        "What is 156 + 243?",
+        "If I buy 3 shirts at $15 each, what's the total cost?",
         "Natalia sold clips to 48 of her friends in April, and then she sold half as many clips in May. How many clips did Natalia sell altogether in April and May?",
         "A robe takes 2 bolts of blue fiber and half that much white fiber. How many bolts in total does it take?",
         "Josh buys a house for $80,000 and puts in $50,000 in repairs. This increased the value by 150%. How much profit did he make?",
@@ -138,21 +149,21 @@ async def interactive_demo():
     while True:
         console.print("\n[bold]Choose:[/bold]")
         console.print("1. Pure calculation (156 + 243)")
-        console.print("2. Simple word problem")
-        console.print("3. Multi-step calculation")
-        console.print("4. Two-step reasoning")
+        console.print("2. Simple word problem (shirts)")
+        console.print("3. Multi-step calculation (Natalia's clips)")
+        console.print("4. Two-step reasoning (robe bolts)")
         console.print("5. Complex profit calculation")
         console.print("6. Your own problem")
         console.print("7. Exit")
         
-        choice = input("\nChoice (1-5): ").strip()
+        choice = input("\nChoice (1-7): ").strip()
         
-        if choice == '5':
+        if choice == '7':
             console.print("\n[bold green]Thanks! 👋[/bold green]")
             break
-        elif choice in ['1', '2', '3']:
+        elif choice in ['1', '2', '3', '4', '5']:
             await demo_problem(examples[int(choice) - 1])
-        elif choice == '4':
+        elif choice == '6':
             custom = input("\nEnter problem: ").strip()
             if custom:
                 await demo_problem(custom)
