@@ -146,9 +146,9 @@ delegate/
 ---
 
 ## 🎯 What's Next?
-• Expand Routing: Route tasks based on SLM performance strengths.
-• Optimize Latency: Improve SLM inference speed
-• Expand Domains: Extend evaluation to more 'agentic' tasks (e.g. Deep Search)
+- Expand Routing: Route tasks based on SLM performance strengths.
+- Optimize Latency: Improve SLM inference speed
+- Evaluate on Other Domains: Extend evaluation to more 'agentic' tasks (e.g. Deep Search)
 
 ---
 
