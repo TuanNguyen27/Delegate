@@ -8,7 +8,6 @@
 ---
 
 ## ☄️ Overview
-[![Watch the demo](https://img.youtube.com/vi/minun1uOmSI/0.jpg)](https://youtu.be/minun1uOmSI)
 
 **Problem Statement:** LLMs are dealt with many routine and easy tasks that do not fully utilize its capabilities, leading to wasteful token usage
 
@@ -47,7 +46,10 @@
 
 ---
 
-## 📺 Try it yourself!
+## 📺 Demo
+[![Watch the demo](https://img.youtube.com/vi/minun1uOmSI/0.jpg)](https://youtu.be/minun1uOmSI)
+
+### Try it yourself! 
 
 ```bash
 git clone https://github.com/yourusername/delegate
