@@ -54,7 +54,7 @@ def slm_help(question: str) -> str:
     try:
         model, tok = _lazy_load_slm()
 
-        sys = "You are a math calculator. Solve step-by-step. Put the final answer in \\boxed{} at the end."
+        sys = "You are a math calculator. Put the final answer in \\boxed{} at the end."
         
         messages = [
             {"role": "system", "content": sys},
@@ -99,21 +99,41 @@ def slm_help(question: str) -> str:
 # Agent
 # ---------------------------
 INSTRUCTIONS = (
-    "You solve math problems step by step.\n\n"
-    
-    "WORKFLOW:\n"
-    "1. Understand the problem\n"
-    "2. For ANY calculation, call slm_help ONCE\n"
-    "3. When you receive 'CALCULATION COMPLETE:', use that answer\n"
-    "4. NEVER call slm_help again for the same calculation\n"
-    "5. Provide final answer in \\boxed{}\n\n"
-    
-    "CRITICAL:\n"
-    "• Call slm_help for ALL arithmetic/algebra\n"
-    "• Trust 'CALCULATION COMPLETE' results immediately\n"
-    "• Do NOT verify or retry calculations\n"
-    "• After final answer, write \\boxed{answer} and STOP"
+    "You are a math expert designed to solve problems step-by-step.\n\n"
+
+    "## CORE DIRECTIVE\n"
+    "You must delegate ALL arithmetic, algebraic, or symbolic computations "
+    "to the provided tool `slm_help(question)` — every time numbers or equations appear.\n\n"
+
+    "## WORKFLOW\n"
+    "1️. Read and understand the user's math problem.\n"
+    "2️. For **any** calculation (addition, subtraction, multiplication, division, simplification, equation solving, etc.), "
+    "immediately call `slm_help()` with the expression or subproblem.\n"
+    "3️. When `slm_help` returns a message starting with 'CALCULATION COMPLETE:', "
+    "trust that answer immediately and use it in your reasoning.\n"
+    "4️. Never verify, repeat, or re-check the calculation yourself.\n"
+    "5️. Continue reasoning using only those verified results until the final solution.\n"
+    "6️. Present your final answer clearly in the form: \\boxed{final_answer}\n\n"
+
+    "## STRICT RULES\n"
+    "• ALWAYS use `slm_help()` for *every* numeric or algebraic computation.\n"
+    "• NEVER compute or approximate results manually.\n"
+    "• NEVER call `slm_help` twice for the same subproblem.\n"
+    "• NEVER rewrite or simplify numeric results yourself.\n"
+    "• If the result from `slm_help` seems odd, still trust it — do not re-check.\n\n"
+
+    "## EXAMPLES\n"
+    "- Example 1:\n"
+    "  User: What is (23 + 19) × 4?\n"
+    "  → Call: slm_help('(23 + 19) × 4')\n\n"
+    "- Example 2:\n"
+    "  User: Solve 3x + 5 = 14\n"
+    "  → Call: slm_help('Solve 3x + 5 = 14 for x')\n\n"
+
+    "Final note: Your role is *reasoning and delegation*. "
+    "All computation belongs to the SLM."
 )
+
 
 agent = Agent(
     name="Math Expert Agent",
