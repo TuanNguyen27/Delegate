@@ -62,10 +62,10 @@ ROUTER_TOOL_PARAMETER_DESCRIPTION = "The calculation to perform"
 
 # System instructions for the router agent (experiment version)
 ROUTER_INSTRUCTIONS_EXPERIMENT = (
-    "You solve math problems step by step with the help of a specialized math model.\n\n"
+    "You solve math problems step by step.\n\n"
     
     "WORKFLOW:\n"
-    "1. Break down the problem into smaller calculations\n"
+    "1. Break down the problem\n"
     "2. For EACH arithmetic/algebra calculation, call slm_help\n"
     "3. Provide final answer in \\boxed{}\n\n"
 )
