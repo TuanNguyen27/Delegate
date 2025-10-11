@@ -159,7 +159,7 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
     
     # Get model with next available API key
     model = key_manager.get_model(
-        model_name="gemini-2.5-flash",
+        model_name="gemini-2.5-flash-lite",
         tools=[slm_help_tool],
         system_instruction=INSTRUCTIONS
     )
@@ -202,12 +202,25 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
         else:
             break
     
-    # Extract final answer
+    # Extract final answer with finish_reason handling
     final_text = ""
-    if response.candidates and response.candidates[0].content.parts:
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, 'text') and part.text:
-                final_text += part.text
+    finish_reason = None
+    
+    if response.candidates:
+        finish_reason = response.candidates[0].finish_reason
+        
+        # Handle problematic finish reasons
+        if finish_reason == 2:  # MAX_TOKENS
+            final_text = "[INCOMPLETE - Hit max tokens]"
+        elif finish_reason == 3:  # SAFETY
+            final_text = "[BLOCKED - Safety filter]"
+        elif finish_reason == 4:  # RECITATION
+            final_text = "[BLOCKED - Recitation filter]"
+        elif response.candidates[0].content.parts:
+            # Extract text normally for STOP (1) or other valid reasons
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'text') and part.text:
+                    final_text += part.text
     
     # Create result object with final_output attribute (to match old Agent API)
     class Result:

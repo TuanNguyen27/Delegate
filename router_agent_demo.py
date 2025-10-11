@@ -164,7 +164,7 @@ async def run_agent(question: str, max_turns: int = 15):
     """
     # Initialize Gemini model with function calling
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+        model_name="gemini-2.5-flash-lite",
         tools=[slm_help_tool],
         system_instruction=INSTRUCTIONS
     )
@@ -217,12 +217,23 @@ async def run_agent(question: str, max_turns: int = 15):
         else:
             break
     
-    # Extract final answer
-    if response.candidates and response.candidates[0].content.parts:
-        final_text = ""
-        for part in response.candidates[0].content.parts:
-            if part.text:
-                final_text += part.text
-        return final_text
+    # Extract final answer with finish_reason handling
+    if response.candidates:
+        finish_reason = response.candidates[0].finish_reason
+        
+        # Handle problematic finish reasons
+        if finish_reason == 2:  # MAX_TOKENS
+            return "[INCOMPLETE - Hit max tokens. Try increasing max_output_tokens]"
+        elif finish_reason == 3:  # SAFETY
+            return "[BLOCKED - Content filtered by safety settings]"
+        elif finish_reason == 4:  # RECITATION
+            return "[BLOCKED - Content blocked due to recitation]"
+        elif response.candidates[0].content.parts:
+            # Extract text normally for STOP (1) or other valid reasons
+            final_text = ""
+            for part in response.candidates[0].content.parts:
+                if part.text:
+                    final_text += part.text
+            return final_text if final_text else "No text in response"
     
     return "No response generated"

@@ -55,7 +55,7 @@ async def run_llm_experiment(test_df: pd.DataFrame, output_file: str, max_tokens
 
         # Get model with next available API key
         model = key_manager.get_model(
-            model_name="gemini-2.5-flash",
+            model_name="gemini-2.5-flash-lite",
             generation_config=genai.types.GenerationConfig(
                 max_output_tokens=max_tokens,
                 temperature=0
@@ -73,7 +73,27 @@ Problem: {row['problem']}"""
             response = await asyncio.to_thread(model.generate_content, prompt)
             t_end = time.time()
             
-            prediction = response.text if response.text else ""
+            # Check finish_reason before accessing text
+            finish_reason = None
+            if response.candidates:
+                finish_reason = response.candidates[0].finish_reason
+            
+            # Handle different finish reasons
+            if finish_reason == 2:  # MAX_TOKENS
+                print(f"⚠️  Response incomplete (hit token limit)")
+                prediction = "[INCOMPLETE - Hit max tokens]"
+            elif finish_reason == 3:  # SAFETY
+                print(f"⚠️  Response blocked by safety filter")
+                prediction = "[BLOCKED - Safety]"
+            elif finish_reason == 4:  # RECITATION
+                print(f"⚠️  Response blocked by recitation filter")
+                prediction = "[BLOCKED - Recitation]"
+            else:
+                # Try to get text safely
+                try:
+                    prediction = response.text if response.text else ""
+                except Exception:
+                    prediction = "[NO RESPONSE]"
             
             # Get token usage from metadata
             input_tokens = response.usage_metadata.prompt_token_count if hasattr(response, 'usage_metadata') else 0

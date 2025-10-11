@@ -296,6 +296,8 @@ delegate/
 ├── README.md                       # Main documentation
 ├── KAGGLE_QUICKSTART.md            # 5-minute Kaggle setup guide
 ├── KAGGLE_GUIDE.md                 # Complete Kaggle documentation
+├── KAGGLE_API_KEYS_SETUP.md        # Multiple API keys setup guide
+├── GEMINI_ERRORS_GUIDE.md          # Gemini API errors explained
 ├── kaggle_notebook_template.py     # Copy-paste Kaggle notebook
 ├── LICENSE
 ├── requirements.txt
@@ -352,6 +354,19 @@ delegate/
 - Detailed troubleshooting section
 - Tips and best practices for Kaggle
 - FAQ and common issues
+
+**`KAGGLE_API_KEYS_SETUP.md`** - Multiple API keys setup
+- How to set up 5 API keys on Kaggle
+- Bypass rate limits (10→50 requests/minute)
+- Verification and duplicate detection
+- Performance comparison
+
+**`GEMINI_ERRORS_GUIDE.md`** - Gemini API error reference
+- Complete guide to all Gemini API errors
+- finish_reason codes explained (MAX_TOKENS, SAFETY, etc.)
+- Solutions and troubleshooting steps
+- Token limit recommendations
+- Quick reference table
 
 **`kaggle_notebook_template.py`** - Ready-to-use notebook
 - Complete notebook with all cells ready to copy
@@ -730,6 +745,17 @@ python tools/check_api_keys.py
 ```
 See [KAGGLE_API_KEYS_SETUP.md](KAGGLE_API_KEYS_SETUP.md) for detailed setup.
 
+**"finish_reason=2" or "response.text requires valid Part"**
+```bash
+# This means max_tokens is too low for the problem
+# Solution: Increase max tokens (now defaults to 1024)
+python experiments/run_comparison.py --samples 10 --max-tokens 1024
+
+# For very complex problems
+python experiments/run_comparison.py --samples 10 --max-tokens 2048
+```
+See [GEMINI_ERRORS_GUIDE.md](GEMINI_ERRORS_GUIDE.md) for detailed explanation of all Gemini errors.
+
 **"All API keys are the same" or duplicate detection**
 ```bash
 # Run verification tool to check
@@ -869,7 +895,7 @@ code_help_tool = genai.protos.Tool(
 ```python
 async def run_code_agent(task: str):
     model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+        model_name="gemini-2.5-flash-lite",
         tools=[code_help_tool],
         system_instruction="Route complex algorithms to code_help tool..."
     )

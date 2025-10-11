@@ -79,7 +79,7 @@ class APIKeyManager:
         genai.configure(api_key=key)
         print(f"🔑 Using API key #{self.current_index + 1}/{self.total_keys}")
     
-    def get_model(self, model_name: str = "gemini-2.5-flash", **kwargs):
+    def get_model(self, model_name: str = "gemini-2.5-flash-lite", **kwargs):
         """
         Get a GenerativeModel configured with the next available API key.
         
@@ -214,7 +214,7 @@ if __name__ == "__main__":
     manager = APIKeyManager(keys, cooldown_seconds=1)
     
     # Get a model
-    model = manager.get_model("gemini-2.5-flash")
+    model = manager.get_model("gemini-2.5-flash-lite")
     
     # Example 2: Load from environment
     manager = create_key_manager()
