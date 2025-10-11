@@ -42,7 +42,7 @@ def slm_help_impl(question: str) -> str:
     """
     Implementation of SLM help tool with tracking.
     """
-    print(f"[TOOL] slm_help: {question[:60]}...")
+    print(f"[TOOL] slm_help: {question}...")
     
     try:
         model, tok = _lazy_load_slm()

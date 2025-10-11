@@ -66,8 +66,9 @@ ROUTER_INSTRUCTIONS_EXPERIMENT = (
     
     "WORKFLOW:\n"
     "1. Break down the problem\n"
-    "2. For EACH arithmetic/algebra calculation, call slm_help\n"
-    "3. Provide final answer in \\boxed{}\n\n"
+    "2. For ANY calculation, call slm_help\n"
+    "3. When you receive 'CALCULATION COMPLETE:', use that answer\n"
+    "4. Provide final answer in \\boxed{}\n\n"
 )
 
 ROUTER_INSTRUCTIONS_EXPERIMENT_BU = (
