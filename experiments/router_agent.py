@@ -101,20 +101,23 @@ def slm_help_impl(question: str) -> str:
 
 
 # Define tool for Gemini function calling
+# Import centralized prompts (must be before tool definition)
+import sys as _sys_prompt
+from pathlib import Path as _Path_prompt
+_sys_prompt.path.insert(0, str(_Path_prompt(__file__).parent.parent))
+from prompts import ROUTER_INSTRUCTIONS_EXPERIMENT, ROUTER_TOOL_DESCRIPTION, ROUTER_TOOL_PARAMETER_DESCRIPTION
+
 slm_help_tool = genai.protos.Tool(
     function_declarations=[
         genai.protos.FunctionDeclaration(
             name="slm_help",
-            description=(
-                "Solve a mathematical calculation using specialized math model. "
-                "Returns definitive answer that should be trusted immediately."
-            ),
+            description=ROUTER_TOOL_DESCRIPTION,
             parameters=genai.protos.Schema(
                 type=genai.protos.Type.OBJECT,
                 properties={
                     "question": genai.protos.Schema(
                         type=genai.protos.Type.STRING,
-                        description="The calculation to perform"
+                        description=ROUTER_TOOL_PARAMETER_DESCRIPTION
                     )
                 },
                 required=["question"]
@@ -123,23 +126,8 @@ slm_help_tool = genai.protos.Tool(
     ]
 )
 
-# Agent instructions
-INSTRUCTIONS = (
-    "You solve math problems step by step.\n\n"
-    
-    "WORKFLOW:\n"
-    "1. Understand the problem\n"
-    "2. For ANY calculation, call slm_help ONCE\n"
-    "3. When you receive 'CALCULATION COMPLETE:', use that answer\n"
-    "4. NEVER call slm_help again for the same calculation\n"
-    "5. Provide final answer in \\boxed{}\n\n"
-    
-    "CRITICAL:\n"
-    "• Call slm_help for ALL arithmetic/algebra\n"
-    "• Trust 'CALCULATION COMPLETE' results immediately\n"
-    "• Do NOT verify or retry calculations\n"
-    "• After final answer, write \\boxed{answer} and STOP"
-)
+# Agent instructions (imported from centralized prompts above)
+INSTRUCTIONS = ROUTER_INSTRUCTIONS_EXPERIMENT
 
 # Agent runner function (replaces Agent/Runner classes)
 async def run_agent(question: str, max_turns: int = 15, key_manager=None):

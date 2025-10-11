@@ -15,6 +15,7 @@ import google.generativeai as genai
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from experiments.utils import check_answer, extract_answer
+from prompts import get_llm_baseline_prompt
 
 load_dotenv()
 
@@ -62,11 +63,7 @@ async def run_llm_experiment(test_df: pd.DataFrame, output_file: str, max_tokens
             )
         )
 
-        prompt = f"""You are an expert at solving math problems.
-Solve this problem step by step.
-Provide your final answer in \\boxed{{answer}} format.
-
-Problem: {row['problem']}"""
+        prompt = get_llm_baseline_prompt(row['problem'])
 
         t_start = time.time()
         try:

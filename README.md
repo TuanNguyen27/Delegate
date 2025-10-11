@@ -326,6 +326,7 @@ python tools/analyze_results.py results_comparison_10samples_*/
 delegate/
 ├── demo.py                         # Interactive demo with rich UI
 ├── router_agent_demo.py            # Core routing agent (demo version)
+├── prompts.py                      # Centralized prompt library
 │
 ├── run_llm_only.py                 # Run LLM baseline separately
 ├── run_router_only.py              # Run router system separately
@@ -380,6 +381,14 @@ delegate/
 - Captures and displays the complete delegation process
 - Shows LLM → SLM communication in real-time
 - Includes example problems at different difficulty levels
+
+**`prompts.py`** - Centralized prompt library
+- All prompts used across experiments in one place
+- Separate versions for experiments vs demos
+- Helper functions for easy access: `get_llm_baseline_prompt()`, `get_router_instructions()`
+- Includes versioning and changelog for tracking prompt changes
+- Template for creating custom prompts for new domains
+- Run standalone to see all prompts: `python prompts.py`
 
 #### Standalone Experiment Scripts
 
@@ -1043,13 +1052,18 @@ python tools/gsm8k_loader.py --samples 100       # Prepare dataset
 
 ### Key Files to Edit
 
-**To change routing behavior:**
-- `router_agent_demo.py` → Edit `INSTRUCTIONS` string
-- `experiments/router_agent.py` → Same for experiments
+**To change prompts/instructions:**
+- `prompts.py` → **Edit all prompts here** (centralized location)
+  - `ROUTER_INSTRUCTIONS_EXPERIMENT` - for experiment version
+  - `ROUTER_INSTRUCTIONS_DEMO` - for demo version (more detailed)
+  - `get_llm_baseline_prompt()` - LLM-only prompt
+  - `get_slm_baseline_prompt()` - SLM-only prompt
+- All experiments and demos automatically use prompts from `prompts.py`
 
 **To modify SLM:**
 - `router_agent_demo.py` → Change `_SLM_ID` variable
-- Update `slm_help` function if needed
+- `experiments/router_agent.py` → Same for experiments
+- Update `slm_help_impl` function if needed
 
 **To add new experiments:**
 - Create `experiments/my_experiment.py`

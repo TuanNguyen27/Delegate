@@ -20,6 +20,7 @@ os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from experiments.utils import check_answer, extract_answer
+from prompts import get_slm_baseline_prompt
 
 @dataclass
 class ProblemResult:
@@ -122,7 +123,7 @@ async def run_slm_experiment(test_df: pd.DataFrame, output_file: str, max_tokens
         print(f"[{idx+1}/{len(test_df)}] Processing...", end=' ')
 
         # Simple prompt for SLM
-        prompt = f"Solve this math problem step by step. Put your final answer in \\boxed{{}}.\n\nProblem: {row['problem']}"
+        prompt = get_slm_baseline_prompt(row['problem'])
 
         t_start = time.time()
         prediction, input_tokens, output_tokens = await agent.run(prompt)
