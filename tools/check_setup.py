@@ -24,10 +24,9 @@ def check_imports():
     required = {
         'torch': 'PyTorch',
         'transformers': 'Transformers',
-        'openai': 'OpenAI',
+        'google.generativeai': 'Google Generative AI',
         'pandas': 'Pandas',
         'datasets': 'HuggingFace Datasets',
-        'agents': 'Agents library',
         'dotenv': 'python-dotenv'
     }
     
@@ -69,32 +68,34 @@ def check_env():
     if env_file.exists():
         print("✓ .env file found")
         
-        # Check for OpenAI key
+        # Check for Google API key
         from dotenv import load_dotenv
         load_dotenv()
         
-        if os.getenv('OPENAI_API_KEY'):
-            print("✓ OPENAI_API_KEY set")
+        if os.getenv('GOOGLE_API_KEY'):
+            print("✓ GOOGLE_API_KEY set")
             return True
         else:
-            print("✗ OPENAI_API_KEY not found in .env")
+            print("✗ GOOGLE_API_KEY not found in .env")
             return False
     else:
         print("✗ .env file not found")
-        print("  Create .env with: OPENAI_API_KEY=your_key_here")
+        print("  Create .env with: GOOGLE_API_KEY=your_key_here")
         return False
 
 
 def check_files():
     """Check required files exist"""
     required_files = [
-        'gsm8k_loader.py',
-        'utils.py',
-        'run_comparison.py',
-        'llm_experiment_v2.py',
-        'router_experiment_v2.py',
-        'router_agent_v2.py',
-        'slm_experiment_v2.py'
+        'tools/gsm8k_loader.py',
+        'experiments/utils.py',
+        'experiments/run_comparison.py',
+        'experiments/llm_experiment.py',
+        'experiments/router_experiment.py',
+        'experiments/router_agent.py',
+        'experiments/slm_experiment.py',
+        'router_agent_demo.py',
+        'demo.py'
     ]
     
     missing = []

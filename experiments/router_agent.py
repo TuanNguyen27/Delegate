@@ -1,13 +1,16 @@
 # experiments/router_agent.py
 """
-Router Agent with token tracking
+Router Agent with token tracking - Using Gemini 2.5 Flash
 """
-import os, re, time, torch
+import os, re, time, torch, asyncio
 from dotenv import load_dotenv
-from agents import Agent, function_tool, ModelSettings
+import google.generativeai as genai
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 load_dotenv()
+
+# Configure Gemini
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # SLM lazy loader
 _SLM, _TOK = None, None
@@ -35,17 +38,9 @@ def _lazy_load_slm():
     return _SLM, _TOK
 
 
-@function_tool
-def slm_help(question: str) -> str:
+def slm_help_impl(question: str) -> str:
     """
-    Solve a mathematical calculation using specialized math model.
-    Returns definitive answer that should be trusted immediately.
-    
-    Args:
-        question: The calculation to perform
-    
-    Returns:
-        Definitive answer in format "CALCULATION COMPLETE: answer"
+    Implementation of SLM help tool with tracking.
     """
     print(f"[TOOL] slm_help: {question[:60]}...")
     
@@ -86,7 +81,7 @@ def slm_help(question: str) -> str:
         try:
             import sys as _sys
             if 'router_experiment' in _sys.modules:
-                from router_experiment import tracker
+                from experiments.router_experiment import tracker
                 tracker.log_tool_call(question, gen, latency, input_tokens, output_tokens)
                 print(f"[TRACKER] Logged: {latency:.2f}s, {input_tokens}→{output_tokens} tokens")
         except Exception as e:
@@ -106,7 +101,30 @@ def slm_help(question: str) -> str:
         return f"CALCULATION ERROR: {str(e)}. Solve yourself."
 
 
-# Agent definition
+# Define tool for Gemini function calling
+slm_help_tool = genai.protos.Tool(
+    function_declarations=[
+        genai.protos.FunctionDeclaration(
+            name="slm_help",
+            description=(
+                "Solve a mathematical calculation using specialized math model. "
+                "Returns definitive answer that should be trusted immediately."
+            ),
+            parameters=genai.protos.Schema(
+                type=genai.protos.Type.OBJECT,
+                properties={
+                    "question": genai.protos.Schema(
+                        type=genai.protos.Type.STRING,
+                        description="The calculation to perform"
+                    )
+                },
+                required=["question"]
+            )
+        )
+    ]
+)
+
+# Agent instructions
 INSTRUCTIONS = (
     "You solve math problems step by step.\n\n"
     
@@ -124,13 +142,67 @@ INSTRUCTIONS = (
     "• After final answer, write \\boxed{answer} and STOP"
 )
 
-agent = Agent(
-    name="Math Router",
-    instructions=INSTRUCTIONS,
-    model="gpt-4o",
-    model_settings=ModelSettings(
-        max_tokens=512,
-        parallel_tool_calls=False
-    ),
-    tools=[slm_help],
-)
+# Agent runner function (replaces Agent/Runner classes)
+async def run_agent(question: str, max_turns: int = 15):
+    """
+    Run the agent with Gemini 2.5 Flash and function calling.
+    Returns final output and usage metadata.
+    """
+    # Initialize Gemini model
+    model = genai.GenerativeModel(
+        model_name="gemini-2.0-flash-exp",
+        tools=[slm_help_tool],
+        system_instruction=INSTRUCTIONS
+    )
+    
+    # Start chat
+    chat = model.start_chat(enable_automatic_function_calling=False)
+    
+    # Send initial question
+    response = await asyncio.to_thread(chat.send_message, question)
+    
+    # Handle function calls in a loop
+    for turn in range(max_turns):
+        if not response.candidates or not response.candidates[0].content.parts:
+            break
+            
+        parts = response.candidates[0].content.parts
+        function_calls = [part.function_call for part in parts if hasattr(part, 'function_call') and part.function_call]
+        
+        if not function_calls:
+            break
+        
+        # Execute function calls
+        function_responses = []
+        for fc in function_calls:
+            if fc.name == "slm_help":
+                question_param = fc.args.get("question", "")
+                result = slm_help_impl(question_param)
+                
+                function_responses.append(
+                    genai.protos.Part(
+                        function_response=genai.protos.FunctionResponse(
+                            name="slm_help",
+                            response={"result": result}
+                        )
+                    )
+                )
+        
+        if function_responses:
+            response = await asyncio.to_thread(chat.send_message, function_responses)
+        else:
+            break
+    
+    # Extract final answer
+    final_text = ""
+    if response.candidates and response.candidates[0].content.parts:
+        for part in response.candidates[0].content.parts:
+            if hasattr(part, 'text') and part.text:
+                final_text += part.text
+    
+    # Create result object with final_output attribute (to match old Agent API)
+    class Result:
+        def __init__(self, text):
+            self.final_output = text
+    
+    return Result(final_text if final_text else "No response generated")

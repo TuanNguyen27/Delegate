@@ -57,12 +57,12 @@ tracker = RouterTracker()
 
 
 async def run_router_experiment(test_df: pd.DataFrame, output_file: str, max_tokens: int):
-    """Run router experiment with token tracking"""
+    """Run router experiment with token tracking - Using Gemini"""
     
-    # Import agent (will be used with tracking)
-    from experiments.router_agent import agent
+    # Import agent runner (will be used with tracking)
+    from experiments.router_agent import run_agent
     
-    print(f"Running Router on {len(test_df)} problems (max_tokens={max_tokens})")
+    print(f"Running Router (Gemini 2.5 Flash) on {len(test_df)} problems (max_tokens={max_tokens})")
     
     results = []
     total_latency = 0.0
@@ -82,7 +82,7 @@ async def run_router_experiment(test_df: pd.DataFrame, output_file: str, max_tok
         
         try:
             t_start = time.time()
-            result = await Runner.run(agent, row["problem"], max_turns=15)
+            result = await run_agent(row["problem"], max_turns=15)
             t_end = time.time()
             
             prediction = result.final_output

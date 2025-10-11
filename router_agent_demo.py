@@ -1,11 +1,14 @@
 # router_agent_demo.py
-import os, re, time, asyncio, torch
+import os, re, time, asyncio, torch, json
 from dotenv import load_dotenv
 
-from agents import Agent, function_tool, Runner, ModelSettings
+import google.generativeai as genai
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 load_dotenv()
+
+# Configure Gemini
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # ---------------------------
 # SLM (Qwen) lazy loader
@@ -37,19 +40,9 @@ def _lazy_load_slm():
 # ---------------------------
 # Tool: call SLM for help
 # ---------------------------
-@function_tool
-def slm_help(question: str) -> str:
+def slm_help_impl(question: str) -> str:
     """
-    Use specialized math model to solve ANY calculation or equation.
-    
-    IMPORTANT: You MUST use this tool for ALL arithmetic operations, 
-    no matter how simple (addition, subtraction, multiplication, division, etc.)
-    
-    Args:
-        question: The mathematical question or calculation to solve
-    
-    Returns:
-        The definitive answer from the specialized math model
+    Implementation of SLM help tool - called when Gemini invokes the tool.
     """
     print(f"[TOOL] slm_help: {question[:60]}...")
     
@@ -97,6 +90,30 @@ def slm_help(question: str) -> str:
     except Exception as e:
         return f"CALCULATION ERROR: {str(e)}. Please try a different approach."
 
+# Define tool for Gemini function calling
+slm_help_tool = genai.protos.Tool(
+    function_declarations=[
+        genai.protos.FunctionDeclaration(
+            name="slm_help",
+            description=(
+                "Use specialized math model to solve ANY calculation or equation. "
+                "IMPORTANT: You MUST use this tool for ALL arithmetic operations, "
+                "no matter how simple (addition, subtraction, multiplication, division, etc.)"
+            ),
+            parameters=genai.protos.Schema(
+                type=genai.protos.Type.OBJECT,
+                properties={
+                    "question": genai.protos.Schema(
+                        type=genai.protos.Type.STRING,
+                        description="The mathematical question or calculation to solve"
+                    )
+                },
+                required=["question"]
+            )
+        )
+    ]
+)
+
 # ---------------------------
 # Agent with STRONGER routing
 # ---------------------------
@@ -138,18 +155,74 @@ Problem: "Natalia sold 48 clips in April and half as many in May. Total?"
 - Present final answer as \\boxed{answer}
 """
 
-agent = Agent(
-    name="Math Expert Agent",
-    instructions=INSTRUCTIONS,
-    model="gpt-4o",
-    model_settings=ModelSettings(
-        max_tokens=512,
-        parallel_tool_calls=False,
-        temperature=0 
-    ),
-    tools=[slm_help],
-)
-
-async def run_agent(question: str):
-    result = await Runner.run(agent, question, max_turns=15)
-    return result.final_output
+# ---------------------------
+# Agent Runner with Gemini
+# ---------------------------
+async def run_agent(question: str, max_turns: int = 15):
+    """
+    Run the agent with Gemini 2.5 Flash and function calling.
+    """
+    # Initialize Gemini model with function calling
+    model = genai.GenerativeModel(
+        model_name="gemini-2.0-flash-exp",
+        tools=[slm_help_tool],
+        system_instruction=INSTRUCTIONS
+    )
+    
+    # Start chat
+    chat = model.start_chat(enable_automatic_function_calling=False)
+    
+    # Send initial question
+    response = await asyncio.to_thread(chat.send_message, question)
+    
+    # Handle function calls in a loop (max_turns to prevent infinite loops)
+    for turn in range(max_turns):
+        # Check if we have function calls
+        if not response.candidates or not response.candidates[0].content.parts:
+            break
+            
+        parts = response.candidates[0].content.parts
+        function_calls = [part.function_call for part in parts if part.function_call]
+        
+        if not function_calls:
+            # No more function calls, we're done
+            break
+        
+        # Execute each function call
+        function_responses = []
+        for fc in function_calls:
+            if fc.name == "slm_help":
+                # Extract the question parameter
+                question_param = fc.args.get("question", "")
+                
+                # Call the SLM
+                result = slm_help_impl(question_param)
+                
+                # Create function response
+                function_responses.append(
+                    genai.protos.Part(
+                        function_response=genai.protos.FunctionResponse(
+                            name="slm_help",
+                            response={"result": result}
+                        )
+                    )
+                )
+        
+        # Send function responses back to Gemini
+        if function_responses:
+            response = await asyncio.to_thread(
+                chat.send_message,
+                function_responses
+            )
+        else:
+            break
+    
+    # Extract final answer
+    if response.candidates and response.candidates[0].content.parts:
+        final_text = ""
+        for part in response.candidates[0].content.parts:
+            if part.text:
+                final_text += part.text
+        return final_text
+    
+    return "No response generated"
