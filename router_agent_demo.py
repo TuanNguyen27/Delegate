@@ -164,7 +164,7 @@ async def run_agent(question: str, max_turns: int = 15):
     """
     # Initialize Gemini model with function calling
     model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash-exp",
+        model_name="gemini-2.5-flash",
         tools=[slm_help_tool],
         system_instruction=INSTRUCTIONS
     )

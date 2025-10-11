@@ -18,8 +18,8 @@ from experiments.utils import check_answer, extract_answer
 
 load_dotenv()
 
-# Configure Gemini
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Import API key manager
+from tools.api_key_manager import create_key_manager
 
 # Data class for results
 from dataclasses import dataclass, asdict
@@ -42,22 +42,25 @@ async def run_llm_experiment(test_df: pd.DataFrame, output_file: str, max_tokens
     
     print(f"Running Gemini 2.5 Flash on {len(test_df)} problems (max_tokens={max_tokens})")
 
+    # Initialize API key manager
+    key_manager = create_key_manager(cooldown_seconds=60)
+
     results = []
     total_input = 0
     total_output = 0
     total_latency = 0.0
 
-    # Initialize Gemini model
-    model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash-exp",
-        generation_config=genai.types.GenerationConfig(
-            max_output_tokens=max_tokens,
-            temperature=0
-        )
-    )
-
     for idx, row in test_df.iterrows():
         print(f"[{idx+1}/{len(test_df)}] Processing...", end=' ')
+
+        # Get model with next available API key
+        model = key_manager.get_model(
+            model_name="gemini-2.5-flash",
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=max_tokens,
+                temperature=0
+            )
+        )
 
         prompt = f"""You are an expert at solving math problems.
 Solve this problem step by step.

@@ -830,7 +830,7 @@ code_help_tool = genai.protos.Tool(
 ```python
 async def run_code_agent(task: str):
     model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash-exp",
+        model_name="gemini-2.5-flash",
         tools=[code_help_tool],
         system_instruction="Route complex algorithms to code_help tool..."
     )

@@ -9,8 +9,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 load_dotenv()
 
-# Configure Gemini
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Import API key manager  
+from tools.api_key_manager import create_key_manager
 
 # SLM lazy loader
 _SLM, _TOK = None, None
@@ -143,14 +143,23 @@ INSTRUCTIONS = (
 )
 
 # Agent runner function (replaces Agent/Runner classes)
-async def run_agent(question: str, max_turns: int = 15):
+async def run_agent(question: str, max_turns: int = 15, key_manager=None):
     """
     Run the agent with Gemini 2.5 Flash and function calling.
     Returns final output and usage metadata.
+    
+    Args:
+        question: The math problem to solve
+        max_turns: Maximum function calling turns
+        key_manager: APIKeyManager instance (created if None)
     """
-    # Initialize Gemini model
-    model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash-exp",
+    # Initialize key manager if not provided
+    if key_manager is None:
+        key_manager = create_key_manager(cooldown_seconds=60)
+    
+    # Get model with next available API key
+    model = key_manager.get_model(
+        model_name="gemini-2.5-flash",
         tools=[slm_help_tool],
         system_instruction=INSTRUCTIONS
     )
