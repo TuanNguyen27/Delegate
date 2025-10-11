@@ -54,15 +54,15 @@ Problem: {problem}"""
 
 # Tool description for Gemini function calling
 ROUTER_TOOL_DESCRIPTION = (
-    "Solve a mathematical calculation (what is 5*10 + 20/4?)"
+    "Compute the result of a mathematical expression. Example 1: Calculate 21 * (3/8) * 24. Example 2: Calculate 15 * 100 - 80."
     "Returns definitive answer that should be trusted immediately."
 )
 
 ROUTER_TOOL_PARAMETER_DESCRIPTION = "The calculation to perform"
 
 # System instructions for the router agent (experiment version)
-ROUTER_INSTRUCTIONS_EXPERIMENT = f"""You are an expert at breaking down math problems into mathematical calculations.
-Solve this problem step by step and call slm_help for each calculation.
+ROUTER_INSTRUCTIONS_EXPERIMENT = f"""You are an expert at decomposing math problems into mathematical expression.
+Think step by step and call slm_help for each expression.
 Provide your final answer in \\boxed{{answer}} format."""
 
 ROUTER_INSTRUCTIONS_EXPERIMENT_BU = (
