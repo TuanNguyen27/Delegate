@@ -172,6 +172,8 @@ python tools/check_api_keys.py
 
 ### Run Experiments
 
+#### Option A: Run All Experiments Together (Recommended for comparison)
+
 ```bash
 # Quick test (10 samples, ~5 minutes)
 python experiments/run_comparison.py --samples 10 --seed 123
@@ -185,6 +187,35 @@ python experiments/run_comparison.py --samples 500 --seed 123
 # Skip SLM baseline (faster)
 python experiments/run_comparison.py --samples 10 --seed 123 --skip-slm
 ```
+
+#### Option B: Run Experiments Separately (Same questions)
+
+Run each experiment individually on the **same question set**:
+
+```bash
+# Step 1: Run LLM baseline first (creates samples.csv)
+python run_llm_only.py --samples 10 --seed 123
+
+# Step 2: Run router on same questions
+python run_router_only.py --input-csv results_llm_only_10samples_*/samples.csv
+
+# Step 3: Run SLM on same questions
+python run_slm_only.py --input-csv results_llm_only_10samples_*/samples.csv
+```
+
+Or run them independently (different questions each time):
+```bash
+# Each generates its own random samples
+python run_llm_only.py --samples 10 --seed 123
+python run_router_only.py --samples 10 --seed 456
+python run_slm_only.py --samples 10 --seed 789
+```
+
+**Why run separately?**
+- 🎯 Test specific methods without waiting for others
+- 🔧 Debug individual experiments
+- ⚡ Skip GPU-heavy SLM if no GPU available
+- 🔄 Re-run failed experiments without starting over
 
 **Results are saved to:**
 ```
@@ -293,6 +324,11 @@ python tools/analyze_results.py results_comparison_10samples_*/
 delegate/
 ├── demo.py                         # Interactive demo with rich UI
 ├── router_agent_demo.py            # Core routing agent (demo version)
+│
+├── run_llm_only.py                 # Run LLM baseline separately
+├── run_router_only.py              # Run router system separately
+├── run_slm_only.py                 # Run SLM baseline separately
+│
 ├── README.md                       # Main documentation
 ├── KAGGLE_QUICKSTART.md            # 5-minute Kaggle setup guide
 ├── KAGGLE_GUIDE.md                 # Complete Kaggle documentation
@@ -341,6 +377,26 @@ delegate/
 - Captures and displays the complete delegation process
 - Shows LLM → SLM communication in real-time
 - Includes example problems at different difficulty levels
+
+#### Standalone Experiment Scripts
+
+**`run_llm_only.py`** - LLM baseline standalone
+- Run Gemini 2.5 Flash alone on GSM8K problems
+- Supports `--input-csv` to use existing sample sets
+- Creates `samples.csv` for reproducibility across experiments
+- Useful for quick testing without loading SLM model
+
+**`run_router_only.py`** - Router system standalone
+- Run Gemini + Qwen tool delegation system
+- Can reuse samples from other experiments via `--input-csv`
+- Tracks LLM/SLM latency and tool call metrics separately
+- Ideal for debugging router behavior
+
+**`run_slm_only.py`** - SLM baseline standalone
+- Run Qwen 2.5 Math 1.5B alone on GSM8K problems
+- Requires GPU for reasonable speed (works on CPU but slow)
+- Can reuse samples to compare with LLM/Router on same questions
+- Useful for testing without API key requirements
 
 #### Kaggle Files
 
@@ -802,6 +858,21 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 ```
 
+**"additional_chat_templates does not exist" or HuggingFace 404 error**
+```bash
+# Solution 1: Upgrade transformers (recommended)
+pip install --upgrade transformers huggingface-hub
+
+# Solution 2: Skip SLM experiment
+python experiments/run_comparison.py --samples 10 --skip-slm
+
+# Solution 3: Clear cache and retry
+rm -rf ~/.cache/huggingface/hub/models--Qwen*
+pip install --upgrade transformers
+```
+The updated code includes automatic fallback handling for this issue.
+See [GEMINI_ERRORS_GUIDE.md](GEMINI_ERRORS_GUIDE.md#huggingface-hub-errors) for details.
+
 ### Debug Mode
 
 Enable verbose logging:
@@ -946,9 +1017,14 @@ pip install -r requirements.txt                  # Install dependencies
 # Demo
 python demo.py                                   # Interactive demo
 
-# Experiments
-python experiments/run_comparison.py --samples 10  # Quick test
+# Experiments (All together)
+python experiments/run_comparison.py --samples 10  # Quick test (all 3 experiments)
 python experiments/run_comparison.py --help      # See all options
+
+# Experiments (Separate) - Same questions
+python run_llm_only.py --samples 10              # Step 1: LLM baseline
+python run_router_only.py --input-csv results_*/samples.csv  # Step 2: Router
+python run_slm_only.py --input-csv results_*/samples.csv     # Step 3: SLM
 
 # Analysis
 python tools/analyze_results.py <results_folder>  # Generate plots

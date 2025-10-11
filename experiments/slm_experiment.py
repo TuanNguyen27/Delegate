@@ -8,9 +8,13 @@ import asyncio
 import torch
 import json
 import sys
+import os
 from pathlib import Path
 from dataclasses import dataclass, asdict
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+# Suppress HuggingFace Hub warnings about missing chat templates
+os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -35,7 +39,42 @@ class QwenAgent:
         self.max_new_tokens = max_new_tokens
         print(f"Loading {model_id}...")
         
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+        # Load tokenizer with error handling for chat templates issue
+        # HuggingFace Hub sometimes has issues with additional_chat_templates path
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_id, 
+                trust_remote_code=True,
+                use_fast=True,
+                legacy=False
+            )
+            print("✓ Tokenizer loaded successfully")
+        except Exception as e:
+            error_msg = str(e)
+            if "additional_chat_templates" in error_msg or "404" in error_msg:
+                print(f"⚠️  Chat templates not found (HuggingFace Hub issue)")
+                print("Retrying with fallback configuration...")
+            else:
+                print(f"⚠️  Warning: {error_msg[:100]}...")
+                print("Retrying with fallback configuration...")
+            
+            # Fallback: try without fast tokenizer and with offline=False
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    model_id, 
+                    trust_remote_code=True,
+                    use_fast=False,
+                    legacy=False
+                )
+                print("✓ Tokenizer loaded with fallback settings")
+            except Exception as e2:
+                print(f"⚠️  Second attempt failed, trying minimal config...")
+                # Last resort: minimal config
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    model_id, 
+                    trust_remote_code=True
+                )
+                print("✓ Tokenizer loaded with minimal config")
         
         device = "cuda" if torch.cuda.is_available() else "cpu"
         dtype = torch.float16 if torch.cuda.is_available() else torch.float32
