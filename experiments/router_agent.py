@@ -77,15 +77,14 @@ def slm_help_impl(question: str) -> str:
         # Extract boxed answer
         match = re.search(r'\\boxed\{([^}]+)\}', gen)
         
-        # Log to tracker
+        # Log to tracker (always attempt, this is only used in experiments)
         try:
-            import sys as _sys
-            if 'router_experiment' in _sys.modules:
-                from experiments.router_experiment import tracker
-                tracker.log_tool_call(question, gen, latency, input_tokens, output_tokens)
-                print(f"[TRACKER] Logged: {latency:.2f}s, {input_tokens}→{output_tokens} tokens")
+            from experiments.router_experiment import tracker
+            tracker.log_tool_call(question, gen, latency, input_tokens, output_tokens)
+            print(f"[TRACKER] Logged: {latency:.2f}s, {input_tokens}→{output_tokens} tokens")
         except Exception as e:
-            print(f"[TRACKER] Failed: {e}")
+            # Tracker not available (shouldn't happen in experiments, but fail gracefully)
+            print(f"[TRACKER] Warning: Could not log tool call: {e}")
 
         if match:
             answer = match.group(1)
