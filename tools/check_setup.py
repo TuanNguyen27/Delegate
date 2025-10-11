@@ -84,6 +84,85 @@ def check_env():
         return False
 
 
+def check_api_keys():
+    """Check and verify multiple API keys"""
+    print("\n🔍 Checking API key configuration...")
+    
+    try:
+        # Import the key loading functions
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from tools.api_key_manager import load_api_keys_from_kaggle, load_api_keys_from_env
+        
+        # Try loading from Kaggle first
+        keys = load_api_keys_from_kaggle()
+        source = "Kaggle Secrets"
+        
+        # Fall back to environment
+        if not keys:
+            from dotenv import load_dotenv
+            load_dotenv()
+            keys = load_api_keys_from_env()
+            source = "Environment Variables"
+        
+        if not keys:
+            print("✗ No API keys found")
+            print("  Add keys as:")
+            print("    - Kaggle: GOOGLE_API_KEY_1, GOOGLE_API_KEY_2, etc.")
+            print("    - Local: .env file or environment variables")
+            return False
+        
+        print(f"✓ Found {len(keys)} API key(s) from {source}")
+        print()
+        
+        # Show each key with preview
+        for i, key in enumerate(keys, 1):
+            if len(key) >= 14:
+                preview = f"{key[:10]}...{key[-4:]}"
+            else:
+                preview = f"{key[:6]}...{key[-2:]}"
+            print(f"  Key #{i}: {preview}")
+        
+        # Check for duplicates
+        print()
+        unique_keys = set(keys)
+        if len(unique_keys) < len(keys):
+            duplicates = len(keys) - len(unique_keys)
+            print(f"⚠️  WARNING: {duplicates} duplicate key(s) detected!")
+            print("  Some keys are the same. Each should be unique.")
+            
+            # Show which keys are duplicates
+            from collections import Counter
+            key_counts = Counter(keys)
+            for key, count in key_counts.items():
+                if count > 1:
+                    preview = f"{key[:10]}...{key[-4:]}"
+                    print(f"    {preview} appears {count} times")
+            return False
+        else:
+            print(f"✓ All {len(keys)} keys are unique (no duplicates)")
+        
+        # Recommendations
+        print()
+        if len(keys) == 1:
+            print("💡 Tip: Add more keys to avoid rate limits")
+            print("   With 1 key: ~10 requests/minute")
+            print("   With 5 keys: ~50 requests/minute (5x faster!)")
+        elif len(keys) < 5:
+            print(f"💡 Tip: You have {len(keys)} keys. Consider adding more!")
+            print(f"   Current: ~{len(keys)*10} requests/minute")
+            print(f"   With 5 keys: ~50 requests/minute")
+        else:
+            print(f"🎉 Excellent! {len(keys)} keys = ~{len(keys)*10} requests/minute")
+        
+        return True
+        
+    except Exception as e:
+        print(f"✗ Error checking API keys: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def check_files():
     """Check required files exist"""
     required_files = [
@@ -140,6 +219,7 @@ def main():
         ("Required Packages", check_imports),
         ("GPU/CUDA", check_gpu),
         ("Environment Variables", check_env),
+        ("API Keys Configuration", check_api_keys),
         ("Required Files", check_files),
         ("Model Cache", check_model_cache)
     ]

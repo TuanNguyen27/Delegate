@@ -165,6 +165,9 @@ echo "GOOGLE_API_KEY=your-google-api-key-here" > .env
 
 # Verify setup
 python tools/check_setup.py
+
+# Optional: Quick API key verification (if using multiple keys)
+python tools/check_api_keys.py
 ```
 
 ### Run Experiments
@@ -309,7 +312,9 @@ delegate/
 │
 ├── tools/                          # Utilities & helpers
 │   ├── check_setup.py              # Verify installation & dependencies
+│   ├── check_api_keys.py           # Quick API key verification tool
 │   ├── analyze_results.py          # Generate charts from experiment results
+│   ├── api_key_manager.py          # API Key Pool Manager
 │   └── gsm8k_loader.py             # Load & prepare GSM8K dataset
 │
 └── media/                          # Images and assets
@@ -399,8 +404,15 @@ delegate/
 **`tools/check_setup.py`** - Environment verification
 - Checks Python version, dependencies
 - Verifies GPU availability
-- Validates API keys
+- Validates API keys (basic check)
 - Confirms model cache status
+
+**`tools/check_api_keys.py`** - API key verification tool
+- Detects all API keys from Kaggle/environment
+- Shows masked preview of each key
+- Checks for duplicate keys
+- Performance estimates based on key count
+- Standalone script for quick debugging
 
 **`tools/analyze_results.py`** - Result visualization
 - Generates comparison tables
@@ -703,6 +715,33 @@ export GOOGLE_API_KEY=your-google-api-key
 ```
 Get your free API key at: https://aistudio.google.com/app/apikey
 
+**"Rate limit exceeded" or "Quota exceeded"**
+```bash
+# Solution: Use multiple API keys for rotation
+# Set up 5 free API keys as:
+export GOOGLE_API_KEY_1=key1
+export GOOGLE_API_KEY_2=key2
+export GOOGLE_API_KEY_3=key3
+export GOOGLE_API_KEY_4=key4
+export GOOGLE_API_KEY_5=key5
+
+# Verify keys are properly loaded and unique
+python tools/check_api_keys.py
+```
+See [KAGGLE_API_KEYS_SETUP.md](KAGGLE_API_KEYS_SETUP.md) for detailed setup.
+
+**"All API keys are the same" or duplicate detection**
+```bash
+# Run verification tool to check
+python tools/check_api_keys.py
+
+# It will show:
+# - How many keys detected
+# - Preview of each key (safely masked)
+# - Which keys are duplicates
+# - Performance estimates
+```
+
 **SLM is very slow (>30s per call)**
 - Expected on CPU (especially older CPUs)
 - GPU recommended: CUDA reduces time to ~5-10s
@@ -875,6 +914,7 @@ retrieval_help_tool = genai.protos.Tool(
 ```bash
 # Setup
 python tools/check_setup.py                      # Verify installation
+python tools/check_api_keys.py                   # Verify API keys (quick check)
 pip install -r requirements.txt                  # Install dependencies
 
 # Demo
