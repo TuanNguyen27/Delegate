@@ -4,6 +4,8 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Kaggle](https://img.shields.io/badge/Kaggle-20BEFF?logo=Kaggle&logoColor=white)](KAGGLE_GUIDE.md)
+[![GitHub](https://img.shields.io/badge/GitHub-BFCmath%2FDelegate-181717?logo=github)](https://github.com/BFCmath/Delegate)
 
 ---
 
@@ -13,6 +15,8 @@
 - [How It Works](#-how-it-works)
 - [Demo](#-demo)
 - [Quick Start](#️-quick-start)
+  - [Local Setup](#installation)
+  - [Kaggle Setup](#running-on-kaggle) 🎯 **Recommended for GPU**
 - [Project Structure](#️-project-structure)
 - [Architecture Deep Dive](#-architecture-deep-dive)
 - [Datasets](#-datasets)
@@ -103,13 +107,20 @@ The system implements **intelligent task delegation** through a prompt-engineere
 
 ### Try it yourself! 
 
+**Option 1: Local Setup** (Requires Python + GPU recommended)
 ```bash
-git clone https://github.com/yourusername/delegate
-cd delegate
+git clone https://github.com/BFCmath/Delegate.git
+cd Delegate
 pip install -r requirements.txt
 echo "GOOGLE_API_KEY=your-google-api-key" > .env
 python demo.py
 ```
+
+**Option 2: Kaggle** (Free GPU access, no local setup needed) 🎯 **Recommended**
+1. Open [Kaggle](https://www.kaggle.com/code)
+2. Follow the [**Kaggle Setup Guide**](KAGGLE_GUIDE.md)
+3. Clone from: https://github.com/BFCmath/Delegate.git
+4. Run experiments with free GPU!
 
 The demo shows real-time delegation between Gemini (LLM) and Qwen (SLM), displaying tool calls and reasoning process.
 
@@ -217,13 +228,72 @@ python tools/analyze_results.py results_comparison_10samples_*/
 
 ---
 
+## 🚀 Running on Kaggle
+
+**Don't have a GPU locally? No problem!** Run everything on Kaggle with free GPU access.
+
+### Why Kaggle?
+- ✅ **Free P100/T4 GPU** (30 hours per week)
+- ✅ **No installation needed** - Everything pre-configured
+- ✅ **Easy sharing** - Share your results with the community
+- ✅ **Persistent storage** - Your work is automatically saved
+
+### Quick Start on Kaggle
+
+1. **Create a Kaggle Notebook**
+   - Go to [kaggle.com/code](https://www.kaggle.com/code)
+   - Click "New Notebook"
+   - Enable GPU: Settings → Accelerator → GPU T4 x2
+
+2. **Add Google API Key**
+   - Add-ons → Secrets → Add new secret
+   - Label: `GOOGLE_API_KEY`
+   - Value: Your Google API key
+
+3. **Run Setup**
+   ```python
+   # Clone repo
+   !git clone https://github.com/BFCmath/Delegate.git
+   %cd Delegate
+   
+   # Install dependencies
+   !pip install -q google-generativeai python-dotenv rich
+   
+   # Set API key
+   import os
+   from kaggle_secrets import UserSecretsClient
+   os.environ['GOOGLE_API_KEY'] = UserSecretsClient().get_secret("GOOGLE_API_KEY")
+   
+   # Run experiments
+   !python experiments/run_comparison.py --samples 10 --seed 123
+   ```
+
+4. **View Results**
+   ```python
+   # Analyze and visualize
+   !python tools/analyze_results.py results_comparison_*/
+   ```
+
+### 📖 Complete Guides
+
+- **[5-Minute Quick Start](KAGGLE_QUICKSTART.md)** - Get running fast! ⚡
+- **[Complete Setup Guide](KAGGLE_GUIDE.md)** - Detailed instructions, troubleshooting, and tips
+- **[Template Notebook](kaggle_notebook_template.py)** - Copy-paste ready code
+
+**Example Kaggle Notebook**: [Coming soon - link to your public notebook]
+
+---
+
 ## 🗄️ Project Structure
 
 ```
 delegate/
 ├── demo.py                         # Interactive demo with rich UI
 ├── router_agent_demo.py            # Core routing agent (demo version)
-├── README.md
+├── README.md                       # Main documentation
+├── KAGGLE_QUICKSTART.md            # 5-minute Kaggle setup guide
+├── KAGGLE_GUIDE.md                 # Complete Kaggle documentation
+├── kaggle_notebook_template.py     # Copy-paste Kaggle notebook
 ├── LICENSE
 ├── requirements.txt
 ├── .gitignore
@@ -231,7 +301,7 @@ delegate/
 │
 ├── experiments/                    # Benchmarking & evaluation
 │   ├── run_comparison.py           # Main entry point - run all experiments
-│   ├── llm_experiment.py           # Baseline: GPT-4o alone
+│   ├── llm_experiment.py           # Baseline: Gemini alone
 │   ├── router_experiment.py        # Main experiment: Router system
 │   ├── slm_experiment.py           # Baseline: Qwen alone
 │   ├── router_agent.py             # Router agent (experiment version w/ metrics)
@@ -264,6 +334,24 @@ delegate/
 - Captures and displays the complete delegation process
 - Shows LLM → SLM communication in real-time
 - Includes example problems at different difficulty levels
+
+#### Kaggle Files
+
+**`KAGGLE_QUICKSTART.md`** - 5-minute setup guide
+- One-page reference for getting started on Kaggle
+- Quick copy-paste commands
+- Essential troubleshooting tips
+
+**`KAGGLE_GUIDE.md`** - Complete Kaggle documentation
+- Step-by-step setup instructions
+- Detailed troubleshooting section
+- Tips and best practices for Kaggle
+- FAQ and common issues
+
+**`kaggle_notebook_template.py`** - Ready-to-use notebook
+- Complete notebook with all cells ready to copy
+- Includes setup, experiments, and visualization
+- Annotated with explanations and tips
 
 #### Experiment Files
 

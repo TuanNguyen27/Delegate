@@ -1,13 +1,17 @@
 # experiments/router_experiment.py
 """
-Router Experiment: GPT-4o + Qwen tool (with token tracking)
+Router Experiment: Gemini + Qwen tool (with token tracking)
 """
 import time
 import pandas as pd
 import asyncio
 import json
+import sys
+from pathlib import Path
 from dataclasses import dataclass, asdict
-from agents import Runner
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from experiments.utils import check_answer, extract_answer
 

@@ -1,4 +1,4 @@
-# experiments/run_experiment.py
+# experiments/slm_experiment.py
 """
 SLM Baseline: Qwen 2.5 alone (with token tracking)
 """
@@ -7,8 +7,13 @@ import pandas as pd
 import asyncio
 import torch
 import json
+import sys
+from pathlib import Path
 from dataclasses import dataclass, asdict
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from experiments.utils import check_answer, extract_answer
 

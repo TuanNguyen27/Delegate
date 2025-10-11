@@ -6,8 +6,13 @@ import os
 import time
 import pandas as pd
 import asyncio
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
 import google.generativeai as genai
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from experiments.utils import check_answer, extract_answer
 
