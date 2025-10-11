@@ -28,7 +28,7 @@ async def main():
     parser.add_argument('--samples', type=int, default=10, help='Number of samples')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
     parser.add_argument('--skip-slm', action='store_true', help='Skip SLM baseline')
-    parser.add_argument('--max-tokens', type=int, default=1024, help='Max output tokens for LLM (default: 1024)')
+    parser.add_argument('--max-tokens', type=int, default=512, help='Max output tokens for LLM (default: 512)')
     args = parser.parse_args()
     
     # Create output directory

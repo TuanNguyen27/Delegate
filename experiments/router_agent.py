@@ -167,8 +167,17 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
     # Start chat
     chat = model.start_chat(enable_automatic_function_calling=False)
     
+    # Track token usage across all turns
+    total_input_tokens = 0
+    total_output_tokens = 0
+    
     # Send initial question
     response = await asyncio.to_thread(chat.send_message, question)
+    
+    # Track tokens from initial response
+    if hasattr(response, 'usage_metadata'):
+        total_input_tokens += response.usage_metadata.prompt_token_count
+        total_output_tokens += response.usage_metadata.candidates_token_count
     
     # Handle function calls in a loop
     for turn in range(max_turns):
@@ -199,6 +208,10 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
         
         if function_responses:
             response = await asyncio.to_thread(chat.send_message, function_responses)
+            # Track tokens from function response
+            if hasattr(response, 'usage_metadata'):
+                total_input_tokens += response.usage_metadata.prompt_token_count
+                total_output_tokens += response.usage_metadata.candidates_token_count
         else:
             break
     
@@ -224,7 +237,13 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
     
     # Create result object with final_output attribute (to match old Agent API)
     class Result:
-        def __init__(self, text):
+        def __init__(self, text, input_tokens=0, output_tokens=0):
             self.final_output = text
+            self.input_tokens = input_tokens
+            self.output_tokens = output_tokens
     
-    return Result(final_text if final_text else "No response generated")
+    return Result(
+        final_text if final_text else "No response generated",
+        input_tokens=total_input_tokens,
+        output_tokens=total_output_tokens
+    )

@@ -61,13 +61,7 @@ backup/
 # Google Drive mount (Colab)
 drive/
 
-KAGGLE_GUIDE.md
-kaggle_notebook_template.py
-KAGGLE_QUICKSTART.md
-SETUP_SUMMARY.md
-API_KEY_ROTATION_SUMMARY.md
-KAGGLE_API_KEYS_SETUP.md
-
+SEPARATE_EXPERIMENTS_GUIDE.md
 
 
 

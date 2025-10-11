@@ -18,7 +18,7 @@ async def main():
     parser = argparse.ArgumentParser(description='Run router experiment only')
     parser.add_argument('--samples', type=int, default=10, help='Number of samples')
     parser.add_argument('--seed', type=int, default=123, help='Random seed')
-    parser.add_argument('--max-tokens', type=int, default=1024, help='Max output tokens (default: 1024)')
+    parser.add_argument('--max-tokens', type=int, default=512, help='Max output tokens (default: 512)')
     parser.add_argument('--input-csv', type=str, help='Use existing sample CSV file (optional)')
     parser.add_argument('--output', type=str, help='Output directory (default: auto-generated)')
     args = parser.parse_args()

@@ -155,10 +155,13 @@ async def run_router_experiment(test_df: pd.DataFrame, output_file: str, max_tok
         'accuracy': accuracy,
         'correct': n_correct,
         'total': n_total,
-        'avg_latency': total_latency / n_total if n_total else 0,
+        'avg_latency_total': total_latency / n_total if n_total else 0,
+        'avg_latency': total_latency / n_total if n_total else 0,  # Keep for backward compatibility
         'total_latency': total_latency,
-        'avg_llm_latency': total_llm_latency / n_total if n_total else 0,
-        'avg_slm_latency': total_slm_latency / n_total if n_total else 0,
+        'avg_latency_llm': total_llm_latency / n_total if n_total else 0,
+        'avg_llm_latency': total_llm_latency / n_total if n_total else 0,  # Keep for backward compatibility
+        'avg_latency_slm': total_slm_latency / n_total if n_total else 0,
+        'avg_slm_latency': total_slm_latency / n_total if n_total else 0,  # Keep for backward compatibility
         'total_slm_latency': total_slm_latency,
         'avg_tool_calls': total_tool_calls / n_total if n_total else 0,
         'total_tool_calls': total_tool_calls,
@@ -182,7 +185,7 @@ async def run_router_experiment(test_df: pd.DataFrame, output_file: str, max_tok
     
     print(f"\n{'='*60}")
     print(f"Router Results: {n_correct}/{n_total} = {accuracy:.2%}")
-    print(f"Avg Latency: {summary['avg_latency']:.3f}s (LLM: {summary['avg_llm_latency']:.3f}s, SLM: {summary['avg_slm_latency']:.3f}s)")
+    print(f"Avg Latency: {summary['avg_latency_total']:.3f}s (LLM: {summary['avg_latency_llm']:.3f}s, SLM: {summary['avg_latency_slm']:.3f}s)")
     print(f"Avg Tool Calls: {summary['avg_tool_calls']:.2f}")
     print(f"Avg Tokens: {summary['avg_input_tokens']:.1f} → {summary['avg_output_tokens']:.1f}")
     print(f"{'='*60}")

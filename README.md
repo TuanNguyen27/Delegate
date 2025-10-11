@@ -217,6 +217,8 @@ python run_slm_only.py --samples 10 --seed 789
 - ⚡ Skip GPU-heavy SLM if no GPU available
 - 🔄 Re-run failed experiments without starting over
 
+📖 **[Complete Guide: Running Experiments Separately](SEPARATE_EXPERIMENTS_GUIDE.md)**
+
 **Results are saved to:**
 ```
 results_comparison_<samples>samples_<timestamp>/
@@ -334,6 +336,7 @@ delegate/
 ├── KAGGLE_GUIDE.md                 # Complete Kaggle documentation
 ├── KAGGLE_API_KEYS_SETUP.md        # Multiple API keys setup guide
 ├── GEMINI_ERRORS_GUIDE.md          # Gemini API errors explained
+├── SEPARATE_EXPERIMENTS_GUIDE.md   # Run experiments separately guide
 ├── kaggle_notebook_template.py     # Copy-paste Kaggle notebook
 ├── LICENSE
 ├── requirements.txt
@@ -423,6 +426,13 @@ delegate/
 - Solutions and troubleshooting steps
 - Token limit recommendations
 - Quick reference table
+
+**`SEPARATE_EXPERIMENTS_GUIDE.md`** - Run experiments individually
+- Step-by-step guide for running each experiment separately
+- How to ensure all experiments use the same questions
+- Command options and examples
+- Use cases and performance tips
+- Comparison table: separate vs full comparison
 
 **`kaggle_notebook_template.py`** - Ready-to-use notebook
 - Complete notebook with all cells ready to copy
@@ -804,8 +814,8 @@ See [KAGGLE_API_KEYS_SETUP.md](KAGGLE_API_KEYS_SETUP.md) for detailed setup.
 **"finish_reason=2" or "response.text requires valid Part"**
 ```bash
 # This means max_tokens is too low for the problem
-# Solution: Increase max tokens (now defaults to 1024)
-python experiments/run_comparison.py --samples 10 --max-tokens 1024
+# Solution: Increase max tokens (now defaults to 512)
+python experiments/run_comparison.py --samples 10 --max-tokens 512
 
 # For very complex problems
 python experiments/run_comparison.py --samples 10 --max-tokens 2048
