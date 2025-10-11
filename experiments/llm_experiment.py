@@ -43,7 +43,7 @@ async def run_llm_experiment(test_df: pd.DataFrame, output_file: str, max_tokens
     print(f"Running Gemini 2.5 Flash on {len(test_df)} problems (max_tokens={max_tokens})")
 
     # Initialize API key manager
-    key_manager = create_key_manager(cooldown_seconds=60)
+    key_manager = create_key_manager(cooldown_seconds=1)
 
     results = []
     total_input = 0

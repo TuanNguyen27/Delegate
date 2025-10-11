@@ -17,7 +17,7 @@ class APIKeyManager:
         model = manager.get_model()  # Uses next available key
     """
     
-    def __init__(self, api_keys: List[str], cooldown_seconds: int = 60):
+    def __init__(self, api_keys: List[str], cooldown_seconds: int = 5):
         """
         Initialize API key manager.
         
@@ -79,7 +79,7 @@ class APIKeyManager:
         genai.configure(api_key=key)
         print(f"🔑 Using API key #{self.current_index + 1}/{self.total_keys}")
     
-    def get_model(self, model_name: str = "gemini-2.0-flash-exp", **kwargs):
+    def get_model(self, model_name: str = "gemini-2.5-flash", **kwargs):
         """
         Get a GenerativeModel configured with the next available API key.
         
@@ -178,7 +178,7 @@ def load_api_keys_from_kaggle() -> List[str]:
         return []
 
 
-def create_key_manager(cooldown_seconds: int = 60) -> APIKeyManager:
+def create_key_manager(cooldown_seconds: int = 1) -> APIKeyManager:
     """
     Create an API key manager with keys from environment or Kaggle.
     
@@ -211,10 +211,10 @@ def create_key_manager(cooldown_seconds: int = 60) -> APIKeyManager:
 if __name__ == "__main__":
     # Example 1: Direct initialization
     keys = ["key1", "key2", "key3"]
-    manager = APIKeyManager(keys, cooldown_seconds=60)
+    manager = APIKeyManager(keys, cooldown_seconds=1)
     
     # Get a model
-    model = manager.get_model("gemini-2.0-flash-exp")
+    model = manager.get_model("gemini-2.5-flash")
     
     # Example 2: Load from environment
     manager = create_key_manager()

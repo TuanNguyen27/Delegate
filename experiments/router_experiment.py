@@ -70,7 +70,7 @@ async def run_router_experiment(test_df: pd.DataFrame, output_file: str, max_tok
     print(f"Running Router (Gemini 2.5 Flash) on {len(test_df)} problems (max_tokens={max_tokens})")
     
     # Initialize key manager (reused across all problems)
-    key_manager = create_key_manager(cooldown_seconds=60)
+    key_manager = create_key_manager(cooldown_seconds=1)
     
     results = []
     total_latency = 0.0

@@ -155,7 +155,7 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
     """
     # Initialize key manager if not provided
     if key_manager is None:
-        key_manager = create_key_manager(cooldown_seconds=60)
+        key_manager = create_key_manager(cooldown_seconds=1)
     
     # Get model with next available API key
     model = key_manager.get_model(
