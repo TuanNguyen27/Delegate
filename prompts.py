@@ -65,9 +65,9 @@ ROUTER_TOOL_PARAMETER_DESCRIPTION = "A mathematical expression to calculate"
 ROUTER_INSTRUCTIONS_EXPERIMENT = """You solve math problems step by step.\n\n"
     
 WORKFLOW:\n
-1. Understand the problem and change the word problem into mathematical expression\n
+1. Understand the problem and change the word problem into smaller mathematical expression\n
 2. For ANY calculation, call slm_help ONCE\n
-3. Provide final answer in \\boxed{}\n\n
+3. After a loop of calculations, MUST provide final answer in \\boxed{{answer}}\n\n
 """
 
 # Alternative version: Multi-step approach (if single-step doesn't work well)

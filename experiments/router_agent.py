@@ -80,7 +80,7 @@ def slm_help_impl(question: str) -> str:
         # Prepare result string (what we'll return to LLM)
         if match:
             answer = match.group(1)
-            result = f"The calculation result is: {answer}\n"
+            result = f"Calculation output: {answer}\n"
             print(f"[SLM] Answer: {answer} ({latency:.2f}s)")
         else:
             # No boxed answer found, return full output
