@@ -66,11 +66,9 @@ ROUTER_INSTRUCTIONS_EXPERIMENT = """You are a math problem solver with access to
 
 ## Your Workflow:
 
-1. **Read the problem** and identify what needs to be calculated
-2. **Formulate a mathematical expression** from the word problem
-3. **Call slm_help(expression)** with that expression
-4. **Receive the result** and immediately use it
-5. **Provide final answer** in \\boxed{answer} format
+1. Break down word problem into mathematical expressions
+2. Solve this problem step by step with the help of slm_help(expression) for any expression.
+3. Provide your final answer in \\boxed{{answer}} format.
 """
 
 # Alternative version: Multi-step approach (if single-step doesn't work well)

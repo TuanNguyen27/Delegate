@@ -371,7 +371,9 @@ delegate/
 ├── ANSWER_EXTRACTION_IMPROVEMENTS.md # Answer extraction fixes (Oct 2024)
 ├── ROUTER_DEBUG_LOGS.md            # Router debugging guide (Oct 2024)
 ├── PROMPT_IMPROVEMENTS_V2.md       # Router prompt fixes v2.0 (Oct 2024)
+├── LLM_SLM_FLOW_VERIFICATION.md    # Communication flow diagnostics (Oct 2024)
 ├── test_answer_extraction.py       # Test suite for answer extraction
+├── diagnose_llm_slm_flow.py        # Diagnostic tool for router flow
 ├── kaggle_notebook_template.py     # Copy-paste Kaggle notebook
 ├── LICENSE
 ├── requirements.txt
