@@ -62,9 +62,12 @@ ROUTER_TOOL_DESCRIPTION = (
 ROUTER_TOOL_PARAMETER_DESCRIPTION = "A mathematical expression to calculate"
 
 # System instructions for the router agent (experiment version)
-ROUTER_INSTRUCTIONS_EXPERIMENT = """You are an expert at solving math problems by using a calculator tool (`slm_help`).
-Solve this problem step by step.
-Provide your final answer in \\boxed{{answer}} format.
+ROUTER_INSTRUCTIONS_EXPERIMENT = """You solve math problems step by step.\n\n"
+    
+WORKFLOW:\n
+1. Understand the problem and change the word problem into mathematical expression\n
+2. For ANY calculation, call slm_help ONCE\n
+3. Provide final answer in \\boxed{}\n\n
 """
 
 # Alternative version: Multi-step approach (if single-step doesn't work well)
