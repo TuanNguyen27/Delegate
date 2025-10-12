@@ -24,53 +24,108 @@ class ProblemResult:
     latency_slm: float = 0.0
     tool_calls: int = 0
     tool_call_details: List[Dict] = None
+    # Debug fields for router (stores full conversation)
+    llm_conversation: List[Dict] = None  # All LLM turns: [{"turn": 1, "input": "...", "output": "...", "function_calls": [...]}]
+    slm_calls: List[Dict] = None  # All SLM calls: [{"input": "...", "output": "...", "latency": 0.5}]
     
     def __post_init__(self):
         if self.tool_call_details is None:
             self.tool_call_details = []
+        if self.llm_conversation is None:
+            self.llm_conversation = []
+        if self.slm_calls is None:
+            self.slm_calls = []
     
     def to_dict(self):
         return asdict(self)
 
 # ---------------------------
-# Answer Extraction (matches llm_test.py)
+# Answer Extraction (improved to handle boxed answers and decimals)
 # ---------------------------
+def normalize_number(num_str: str) -> str:
+    """
+    Normalize a number string for comparison.
+    Handles decimals, commas, etc.
+    
+    Args:
+        num_str: Number string like "42", "42.00", "1,000"
+        
+    Returns:
+        Normalized string (integer if no decimal part, else float)
+    """
+    if not num_str:
+        return ""
+    
+    # Remove commas and dollar signs
+    cleaned = num_str.replace(",", "").replace("$", "").strip()
+    
+    try:
+        # Try to parse as float
+        num = float(cleaned)
+        # If it's effectively an integer, return as int string
+        if num == int(num):
+            return str(int(num))
+        else:
+            return str(num)
+    except ValueError:
+        # Not a valid number, return as-is
+        return cleaned
+
 def extract_answer(text: str) -> str:
     """
     Extract numerical answer from model output.
-    Matches the extraction logic from llm_test.py exactly.
+    Priority order:
+    1. Last \\boxed{...} expression (LaTeX format)
+    2. "the answer is X" pattern
+    3. Last number in text
     
     Args:
         text: Model output text
         
     Returns:
-        Extracted answer as string (only digits)
+        Extracted answer as normalized string
     """
-    # First try "the answer is X" pattern
-    m = re.findall(r"(?:the answer is|answer is)\s*(\d+)", text, re.IGNORECASE)
-    if m:
-        return m[-1]
+    # Priority 1: Look for \boxed{...} (most reliable for math problems)
+    # Match both \\boxed{X} and \boxed{X}, and handle nested expressions
+    boxed_matches = re.findall(r'\\boxed\{([^}]+)\}', text)
+    if boxed_matches:
+        # Take the LAST boxed expression (final answer)
+        last_boxed = boxed_matches[-1]
+        # Extract number from inside boxed (might have $ or other formatting)
+        # Support numbers with commas like 1,000
+        numbers = re.findall(r'-?\d+(?:,\d{3})*(?:\.\d+)?', last_boxed)
+        if numbers:
+            return normalize_number(numbers[-1])
     
-    # Fallback: last number in text
-    m = re.findall(r"\d+", text)
+    # Priority 2: "the answer is X" pattern
+    # Now handles decimals too
+    m = re.findall(r"(?:the answer is|answer is)\s*\$?(-?\d+(?:\.\d+)?)", text, re.IGNORECASE)
     if m:
-        return m[-1]
+        return normalize_number(m[-1])
+    
+    # Priority 3: Fallback - last number in text (handles decimals)
+    m = re.findall(r'-?\d+(?:\.\d+)?', text)
+    if m:
+        return normalize_number(m[-1])
     
     return ""
 
 def extract_ground_truth(answer: str) -> str:
     """
     Extract ground truth answer from answer column.
-    Matches llm_test.py logic.
+    Now handles decimals and normalizes the output.
     
     Args:
         answer: Content from 'answer' column
         
     Returns:
-        Extracted answer as string (only digits)
+        Extracted answer as normalized string
     """
-    gold_num = re.findall(r"\d+", str(answer))
-    return gold_num[-1] if gold_num else ""
+    # Handle decimals in ground truth too
+    gold_num = re.findall(r'-?\d+(?:\.\d+)?', str(answer))
+    if gold_num:
+        return normalize_number(gold_num[-1])
+    return ""
 
 def check_answer(prediction: str, ground_truth: str) -> bool:
     """
@@ -91,7 +146,7 @@ def check_answer(prediction: str, ground_truth: str) -> bool:
 # Metrics Tracker
 # ---------------------------
 class MetricsTracker:
-    """Track tool usage metrics during evaluation"""
+    """Track tool usage metrics and debug info during evaluation"""
     
     def __init__(self):
         self.reset()
@@ -100,13 +155,18 @@ class MetricsTracker:
         """Reset all tracking for new experiment"""
         self.current_tool_calls = []
         self.current_slm_time = 0.0
+        # Debug fields
+        self.current_llm_conversation = []
+        self.current_slm_calls = []
     
     def start_problem(self):
         """Reset counters for new problem"""
         self.current_tool_calls = []
         self.current_slm_time = 0.0
+        self.current_llm_conversation = []
+        self.current_slm_calls = []
     
-    def log_tool_call(self, question: str, result: str, latency: float):
+    def log_tool_call(self, question: str, result: str, latency: float, input_tokens: int = 0, output_tokens: int = 0):
         """
         Log a single SLM tool call.
         
@@ -114,13 +174,53 @@ class MetricsTracker:
             question: Question sent to SLM
             result: JSON result from SLM
             latency: Time taken by SLM
+            input_tokens: SLM input tokens
+            output_tokens: SLM output tokens
         """
         self.current_tool_calls.append({
             "question": question,
             "result": result,
-            "latency": latency
+            "latency": latency,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens
         })
         self.current_slm_time += latency
+    
+    def log_slm_call(self, question: str, full_output: str, latency: float, input_tokens: int = 0, output_tokens: int = 0):
+        """
+        Log full SLM input/output for debugging.
+        
+        Args:
+            question: Question sent to SLM
+            full_output: Full SLM response (before extraction)
+            latency: Time taken
+            input_tokens: Input token count
+            output_tokens: Output token count
+        """
+        self.current_slm_calls.append({
+            "input": question,
+            "output": full_output,
+            "latency": latency,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens
+        })
+    
+    def log_llm_turn(self, turn: int, user_input: str, llm_output: str, function_calls: List[Dict] = None):
+        """
+        Log a single LLM conversation turn for debugging.
+        
+        Args:
+            turn: Turn number (0-indexed)
+            user_input: Input prompt/message to LLM
+            llm_output: LLM text response
+            function_calls: List of function calls made (if any)
+        """
+        self.current_llm_conversation.append({
+            "turn": turn,
+            "input": user_input,
+            "output": llm_output,
+            "function_calls": function_calls or []
+        })
 
 # ---------------------------
 # Results Saving

@@ -77,24 +77,28 @@ def slm_help_impl(question: str) -> str:
         # Extract boxed answer
         match = re.search(r'\\boxed\{([^}]+)\}', gen)
         
-        # Log to tracker (always attempt, this is only used in experiments)
-        try:
-            from experiments.router_experiment import tracker
-            tracker.log_tool_call(question, gen, latency, input_tokens, output_tokens)
-            print(f"[TRACKER] Logged: {latency:.2f}s, {input_tokens}→{output_tokens} tokens")
-        except Exception as e:
-            # Tracker not available (shouldn't happen in experiments, but fail gracefully)
-            print(f"[TRACKER] Warning: Could not log tool call: {e}")
-
+        # Prepare result string (what we'll return to LLM)
         if match:
             answer = match.group(1)
             result = f"CALCULATION COMPLETE: The answer is {answer}. Use this directly."
             print(f"[SLM] Answer: {answer} ({latency:.2f}s)")
-            return result
         else:
             result = f"CALCULATION COMPLETE: {gen}"
             print(f"[SLM] No boxed answer ({latency:.2f}s)")
-            return result
+        
+        # Log to tracker (always attempt, this is only used in experiments)
+        try:
+            from experiments.router_experiment import tracker
+            # Log summary info (for metrics)
+            tracker.log_tool_call(question, gen, latency, input_tokens, output_tokens)
+            # Log full SLM I/O (for debugging)
+            tracker.log_slm_call(question, gen, latency, input_tokens, output_tokens)
+            print(f"[TRACKER] Logged: {latency:.2f}s, {input_tokens}→{output_tokens} tokens")
+        except Exception as e:
+            # Tracker not available (shouldn't happen in experiments, but fail gracefully)
+            print(f"[TRACKER] Warning: Could not log tool call: {e}")
+        
+        return result
         
     except Exception as e:
         return f"CALCULATION ERROR: {str(e)}. Solve yourself."
@@ -166,6 +170,25 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
         total_input_tokens += response.usage_metadata.prompt_token_count
         total_output_tokens += response.usage_metadata.candidates_token_count
     
+    # Log initial LLM turn (for debugging)
+    initial_output = ""
+    initial_function_calls = []
+    if response.candidates and response.candidates[0].content.parts:
+        for part in response.candidates[0].content.parts:
+            if hasattr(part, 'text') and part.text:
+                initial_output += part.text
+            if hasattr(part, 'function_call') and part.function_call:
+                initial_function_calls.append({
+                    "name": part.function_call.name,
+                    "args": dict(part.function_call.args)
+                })
+    
+    try:
+        from experiments.router_experiment import tracker
+        tracker.log_llm_turn(0, question, initial_output, initial_function_calls)
+    except:
+        pass  # Tracker not available
+    
     # Handle function calls in a loop
     for turn in range(max_turns):
         if not response.candidates or not response.candidates[0].content.parts:
@@ -199,6 +222,25 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
             if hasattr(response, 'usage_metadata'):
                 total_input_tokens += response.usage_metadata.prompt_token_count
                 total_output_tokens += response.usage_metadata.candidates_token_count
+            
+            # Log this LLM turn (for debugging)
+            turn_output = ""
+            turn_function_calls = []
+            if response.candidates and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, 'text') and part.text:
+                        turn_output += part.text
+                    if hasattr(part, 'function_call') and part.function_call:
+                        turn_function_calls.append({
+                            "name": part.function_call.name,
+                            "args": dict(part.function_call.args)
+                        })
+            
+            try:
+                from experiments.router_experiment import tracker
+                tracker.log_llm_turn(turn + 1, f"[Function responses: {len(function_responses)}]", turn_output, turn_function_calls)
+            except:
+                pass  # Tracker not available
         else:
             break
     
@@ -222,15 +264,29 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
                 if hasattr(part, 'text') and part.text:
                     final_text += part.text
     
+    # Get debug info from tracker (if available)
+    llm_conversation = []
+    slm_calls = []
+    try:
+        from experiments.router_experiment import tracker
+        llm_conversation = tracker.current_llm_conversation.copy()
+        slm_calls = tracker.current_slm_calls.copy()
+    except:
+        pass  # Tracker not available
+    
     # Create result object with final_output attribute (to match old Agent API)
     class Result:
-        def __init__(self, text, input_tokens=0, output_tokens=0):
+        def __init__(self, text, input_tokens=0, output_tokens=0, llm_conversation=None, slm_calls=None):
             self.final_output = text
             self.input_tokens = input_tokens
             self.output_tokens = output_tokens
+            self.llm_conversation = llm_conversation or []
+            self.slm_calls = slm_calls or []
     
     return Result(
         final_text if final_text else "No response generated",
         input_tokens=total_input_tokens,
-        output_tokens=total_output_tokens
+        output_tokens=total_output_tokens,
+        llm_conversation=llm_conversation,
+        slm_calls=slm_calls
     )

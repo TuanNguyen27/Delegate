@@ -126,6 +126,27 @@ The demo shows real-time delegation between Gemini (LLM) and Qwen (SLM), display
 
 ---
 
+## 🆕 Recent Improvements
+
+### Answer Extraction (October 2024)
+- ✅ **Fixed false negatives**: `\boxed{6.00}` now correctly matches ground truth `6`
+- ✅ **Smart extraction**: Prioritizes `\boxed{}` expressions over other patterns
+- ✅ **Number normalization**: Handles decimals, commas, dollar signs, negatives
+- ✅ **Multiple boxed**: Takes the LAST `\boxed{}` as final answer
+- 📊 **Impact**: More accurate evaluation, fewer incorrect rejections
+
+See [ANSWER_EXTRACTION_IMPROVEMENTS.md](ANSWER_EXTRACTION_IMPROVEMENTS.md) for details.
+
+### Router Debug Logs (October 2024)
+- 🔍 **Full LLM conversation**: See every turn with inputs, outputs, function calls
+- 🔍 **Complete SLM I/O**: Full SLM inputs and outputs (not just extracted answers)
+- 🐛 **Better debugging**: Analyze why delegation failed or succeeded
+- 💾 **Auto-saved**: All debug info in `results_router.json`
+
+See [ROUTER_DEBUG_LOGS.md](ROUTER_DEBUG_LOGS.md) for usage examples.
+
+---
+
 ## ⚡️ Quick Start
 
 ### Prerequisites
@@ -338,6 +359,9 @@ delegate/
 ├── KAGGLE_API_KEYS_SETUP.md        # Multiple API keys setup guide
 ├── GEMINI_ERRORS_GUIDE.md          # Gemini API errors explained
 ├── SEPARATE_EXPERIMENTS_GUIDE.md   # Run experiments separately guide
+├── ANSWER_EXTRACTION_IMPROVEMENTS.md # Answer extraction fixes (Oct 2024)
+├── ROUTER_DEBUG_LOGS.md            # Router debugging guide (Oct 2024)
+├── test_answer_extraction.py       # Test suite for answer extraction
 ├── kaggle_notebook_template.py     # Copy-paste Kaggle notebook
 ├── LICENSE
 ├── requirements.txt

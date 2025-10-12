@@ -31,6 +31,15 @@ class ProblemResult:
     output_tokens: int = 0
     slm_input_tokens: int = 0
     slm_output_tokens: int = 0
+    # Debug fields for detailed analysis
+    llm_conversation: list = None  # All LLM turns
+    slm_calls: list = None  # All SLM calls
+    
+    def __post_init__(self):
+        if self.llm_conversation is None:
+            self.llm_conversation = []
+        if self.slm_calls is None:
+            self.slm_calls = []
 
 
 class RouterTracker:
@@ -43,6 +52,9 @@ class RouterTracker:
         self.current_tool_calls = []
         self.current_slm_input_tokens = 0
         self.current_slm_output_tokens = 0
+        # Debug fields
+        self.current_llm_conversation = []
+        self.current_slm_calls = []
     
     def log_tool_call(self, query, response, latency, input_tokens, output_tokens):
         self.current_tool_calls.append({
@@ -55,6 +67,25 @@ class RouterTracker:
         self.current_slm_time += latency
         self.current_slm_input_tokens += input_tokens
         self.current_slm_output_tokens += output_tokens
+    
+    def log_slm_call(self, question: str, full_output: str, latency: float, input_tokens: int = 0, output_tokens: int = 0):
+        """Log full SLM input/output for debugging"""
+        self.current_slm_calls.append({
+            "input": question,
+            "output": full_output,
+            "latency": latency,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens
+        })
+    
+    def log_llm_turn(self, turn: int, user_input: str, llm_output: str, function_calls: list = None):
+        """Log a single LLM conversation turn for debugging"""
+        self.current_llm_conversation.append({
+            "turn": turn,
+            "input": user_input,
+            "output": llm_output,
+            "function_calls": function_calls or []
+        })
 
 # Global tracker
 tracker = RouterTracker()
@@ -134,7 +165,10 @@ async def run_router_experiment(test_df: pd.DataFrame, output_file: str, max_tok
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 slm_input_tokens=tracker.current_slm_input_tokens,
-                slm_output_tokens=tracker.current_slm_output_tokens
+                slm_output_tokens=tracker.current_slm_output_tokens,
+                # Add debug info from result object and tracker
+                llm_conversation=getattr(result, 'llm_conversation', tracker.current_llm_conversation.copy()),
+                slm_calls=getattr(result, 'slm_calls', tracker.current_slm_calls.copy())
             )
             
             results.append(problem_result)
