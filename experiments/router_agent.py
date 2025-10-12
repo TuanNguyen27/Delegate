@@ -99,7 +99,7 @@ def slm_help_impl(question: str) -> str:
             # Tracker not available (shouldn't happen in experiments, but fail gracefully)
             print(f"[TRACKER] Warning: Could not log tool call: {e}")
         
-        return result
+            return result
         
     except Exception as e:
         return f"CALCULATION ERROR: {str(e)}. Solve yourself."
@@ -208,6 +208,9 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
                 question_param = fc.args.get("question", "")
                 result = slm_help_impl(question_param)
                 
+                # Debug: Log what we're sending to LLM
+                print(f"[DEBUG] Sending to LLM: result={result[:100]}...")
+                
                 function_responses.append(
                     genai.protos.Part(
                         function_response=genai.protos.FunctionResponse(
@@ -219,6 +222,10 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
         
         if function_responses:
             response = await asyncio.to_thread(chat.send_message, function_responses)
+            
+            # Debug: Check if LLM received anything
+            print(f"[DEBUG] LLM Response received: candidates={len(response.candidates) if response.candidates else 0}")
+            
             # Track tokens from function response
             if hasattr(response, 'usage_metadata'):
                 total_input_tokens += response.usage_metadata.prompt_token_count
@@ -228,14 +235,23 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
             turn_output = ""
             turn_function_calls = []
             if response.candidates and response.candidates[0].content.parts:
+                print(f"[DEBUG] LLM Response parts count: {len(response.candidates[0].content.parts)}")
                 for part in response.candidates[0].content.parts:
                     if hasattr(part, 'text') and part.text:
                         turn_output += part.text
+                        print(f"[DEBUG] LLM Generated text: {part.text[:100]}...")
                     if hasattr(part, 'function_call') and part.function_call:
                         turn_function_calls.append({
                             "name": part.function_call.name,
                             "args": dict(part.function_call.args)
                         })
+            else:
+                print(f"[DEBUG] ⚠️  No response parts from LLM!")
+            
+            # Debug: Final check
+            if not turn_output:
+                print(f"[DEBUG] ❌ LLM generated EMPTY output after receiving SLM result!")
+                print(f"[DEBUG] finish_reason: {response.candidates[0].finish_reason if response.candidates else 'N/A'}")
             
             try:
                 from experiments.router_experiment import tracker
@@ -290,4 +306,4 @@ async def run_agent(question: str, max_turns: int = 15, key_manager=None):
         output_tokens=total_output_tokens,
         llm_conversation=llm_conversation,
         slm_calls=slm_calls
-    )
+)
