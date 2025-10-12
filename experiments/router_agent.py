@@ -47,7 +47,7 @@ def slm_help_impl(question: str) -> str:
     try:
         model, tok = _lazy_load_slm()
 
-        sys = "You are a math calculator. Solve the problem. Put final answer in \\boxed{} at the end."
+        sys = "You are a math calculator. Solve the problem step by step. Put final answer in \\boxed{} at the end."
         messages = [
             {"role": "system", "content": sys},
             {"role": "user", "content": question},

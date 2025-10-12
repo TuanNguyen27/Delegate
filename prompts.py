@@ -54,15 +54,21 @@ Problem: {problem}"""
 
 # Tool description for Gemini function calling
 ROUTER_TOOL_DESCRIPTION = (
-    "Compute the result of a mathematical expression. Example 1: Calculate 21 * (3/8) * 24. Example 2: Calculate 15 * 100 - 80."
+    "Expert in solving mathematical expressions. Example 1: Calculate 21 * (3/8) * 24. Example 2: Calculate 15 * 100 - 80."
     "Returns definitive answer that should be trusted immediately."
 )
 
 ROUTER_TOOL_PARAMETER_DESCRIPTION = "The calculation to perform"
 
 # System instructions for the router agent (experiment version)
-ROUTER_INSTRUCTIONS_EXPERIMENT = f"""You are an expert at decomposing math problems into mathematical expression.
-Think step by step and call slm_help for each expression.
+ROUTER_INSTRUCTIONS_EXPERIMENT = f"""You are an expert at solving math problems by delegating calculations to a tool.
+
+Your task is to deconstruct the problem into a single, complete mathematical expression and then call the `slm_help` tool to solve it.
+Provide your final answer in \\boxed{{answer}} format."""
+
+# System instructions for the router agent (experiment version)
+ROUTER_INSTRUCTIONS_EXPERIMENT_BU2 = f"""You are an expert at decomposing math problems into mathematical expression.
+Convert the math problem into mathematical expressions and call slm_help.
 Provide your final answer in \\boxed{{answer}} format."""
 
 ROUTER_INSTRUCTIONS_EXPERIMENT_BU = (
