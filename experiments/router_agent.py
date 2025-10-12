@@ -80,11 +80,11 @@ def slm_help_impl(question: str) -> str:
         # Prepare result string (what we'll return to LLM)
         if match:
             answer = match.group(1)
-            result = f"The calculation result is: {answer}\n\nNow provide your final answer using this result."
+            result = f"The calculation result is: {answer}\n"
             print(f"[SLM] Answer: {answer} ({latency:.2f}s)")
         else:
             # No boxed answer found, return full output
-            result = f"Calculation output: {gen}\n\nNow provide your final answer based on this."
+            result = f"Calculation output: {gen}\n"
             print(f"[SLM] No boxed answer ({latency:.2f}s)")
         
         # Log to tracker (always attempt, this is only used in experiments)
