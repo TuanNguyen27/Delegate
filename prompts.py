@@ -59,16 +59,12 @@ ROUTER_TOOL_DESCRIPTION = (
     "It returns the numerical answer that you should use directly in your final response."
 )
 
-ROUTER_TOOL_PARAMETER_DESCRIPTION = "A mathematical expression to calculate (e.g., '340 * 194', '100 - (20 + 44)', '3 * 7 * (3/8) * 24')"
+ROUTER_TOOL_PARAMETER_DESCRIPTION = "A mathematical expression to calculate"
 
 # System instructions for the router agent (experiment version)
-ROUTER_INSTRUCTIONS_EXPERIMENT = """You are a math problem solver with access to a calculator tool (`slm_help`).
-
-## Your Workflow:
-
-1. Break down word problem into mathematical expressions
-2. Solve this problem step by step with the help of slm_help(expression) for any expression.
-3. Provide your final answer in \\boxed{{answer}} format.
+ROUTER_INSTRUCTIONS_EXPERIMENT = """You are an expert at solving math problems by effectively breaking down word problems into mathematical expressions.
+For ANY calculation, call slm_help ONCE.
+Provide your final answer in \\boxed{{answer}} format.
 """
 
 # Alternative version: Multi-step approach (if single-step doesn't work well)
