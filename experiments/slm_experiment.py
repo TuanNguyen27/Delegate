@@ -1,6 +1,7 @@
 # experiments/slm_experiment.py
 """
-SLM Baseline: Qwen 2.5 alone (with token tracking)
+SLM Baseline: Qwen 2.5 Math 1.5B (optimized with Unsloth)
+Uses Unsloth for 2x faster inference + 4-bit quantization
 """
 import time
 import pandas as pd
@@ -11,9 +12,8 @@ import sys
 import os
 from pathlib import Path
 from dataclasses import dataclass, asdict
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
-# Suppress HuggingFace Hub warnings about missing chat templates
+# Suppress HuggingFace Hub warnings
 os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
 
 # Add parent directory to path for imports
@@ -21,6 +21,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from experiments.utils import check_answer, extract_answer
 from prompts import get_slm_baseline_prompt
+
+# Import Unsloth for optimized inference
+try:
+    from unsloth import FastLanguageModel
+    UNSLOTH_AVAILABLE = True
+    print("✓ Unsloth available - using optimized inference (2x faster!)")
+except ImportError:
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    UNSLOTH_AVAILABLE = False
+    print("⚠️  Unsloth not available - using standard transformers (slower)")
+    print("   Install with: pip install unsloth")
 
 @dataclass
 class ProblemResult:
@@ -40,53 +51,83 @@ class QwenAgent:
         self.max_new_tokens = max_new_tokens
         print(f"Loading {model_id}...")
         
-        # Load tokenizer with error handling for chat templates issue
-        # HuggingFace Hub sometimes has issues with additional_chat_templates path
-        try:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                model_id, 
-                trust_remote_code=True,
-                use_fast=True,
-                legacy=False
-            )
-            print("✓ Tokenizer loaded successfully")
-        except Exception as e:
-            error_msg = str(e)
-            if "additional_chat_templates" in error_msg or "404" in error_msg:
-                print(f"⚠️  Chat templates not found (HuggingFace Hub issue)")
-                print("Retrying with fallback configuration...")
+        if UNSLOTH_AVAILABLE:
+            # Use Unsloth for optimized inference (2x faster + 4-bit quantization)
+            # Convert to unsloth model name
+            if not model_id.startswith("unsloth/"):
+                unsloth_id = f"unsloth/{model_id.split('/')[-1]}"
+                print(f"   Using Unsloth optimized: {unsloth_id}")
             else:
-                print(f"⚠️  Warning: {error_msg[:100]}...")
-                print("Retrying with fallback configuration...")
+                unsloth_id = model_id
             
-            # Fallback: try without fast tokenizer and with offline=False
+            # Load with Unsloth (includes tokenizer)
+            max_seq_length = 2048
+            dtype = None  # Auto detection
+            load_in_4bit = True  # Use 4-bit quantization
+            
+            self.model, self.tokenizer = FastLanguageModel.from_pretrained(
+                model_name=unsloth_id,
+                max_seq_length=max_seq_length,
+                dtype=dtype,
+                load_in_4bit=load_in_4bit,
+            )
+            
+            # Enable fast inference mode (2x speedup!)
+            FastLanguageModel.for_inference(self.model)
+            
+            if torch.cuda.is_available():
+                vram = torch.cuda.get_device_properties(0).total_memory / 1e9
+                print(f"✓ Model loaded (Unsloth 4-bit, {vram:.1f}GB VRAM)")
+            else:
+                print("✓ Model loaded (Unsloth CPU mode)")
+        
+        else:
+            # Fallback: Standard transformers (slower)
+            # Load tokenizer with error handling
             try:
                 self.tokenizer = AutoTokenizer.from_pretrained(
                     model_id, 
                     trust_remote_code=True,
-                    use_fast=False,
+                    use_fast=True,
                     legacy=False
                 )
-                print("✓ Tokenizer loaded with fallback settings")
-            except Exception as e2:
-                print(f"⚠️  Second attempt failed, trying minimal config...")
-                # Last resort: minimal config
-                self.tokenizer = AutoTokenizer.from_pretrained(
-                    model_id, 
-                    trust_remote_code=True
-                )
-                print("✓ Tokenizer loaded with minimal config")
-        
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-        
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            device_map="auto" if device == "cuda" else None,
-            torch_dtype=dtype,
-            trust_remote_code=True
-        )
-        print("Model ready")
+                print("✓ Tokenizer loaded successfully")
+            except Exception as e:
+                error_msg = str(e)
+                if "additional_chat_templates" in error_msg or "404" in error_msg:
+                    print(f"⚠️  Chat templates not found (HuggingFace Hub issue)")
+                    print("Retrying with fallback configuration...")
+                else:
+                    print(f"⚠️  Warning: {error_msg[:100]}...")
+                    print("Retrying with fallback configuration...")
+                
+                # Fallback: try without fast tokenizer
+                try:
+                    self.tokenizer = AutoTokenizer.from_pretrained(
+                        model_id, 
+                        trust_remote_code=True,
+                        use_fast=False,
+                        legacy=False
+                    )
+                    print("✓ Tokenizer loaded with fallback settings")
+                except Exception as e2:
+                    print(f"⚠️  Second attempt failed, trying minimal config...")
+                    self.tokenizer = AutoTokenizer.from_pretrained(
+                        model_id, 
+                        trust_remote_code=True
+                    )
+                    print("✓ Tokenizer loaded with minimal config")
+            
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+            
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                device_map="auto" if device == "cuda" else None,
+                torch_dtype=dtype,
+                trust_remote_code=True
+            )
+            print("Model ready (standard transformers)")
 
     async def run(self, prompt: str):
         """Run inference and return (response, input_tokens, output_tokens)"""
