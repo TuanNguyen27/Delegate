@@ -358,7 +358,8 @@ delegate/
 ├── router_agent_demo.py            # Core routing agent (demo version)
 ├── prompts.py                      # Centralized prompt library
 │
-├── run_llm_only.py                 # Run LLM baseline separately
+├── run_llm_only.py                 # Run LLM baseline separately (Gemini API)
+├── run_offline_llm_only.py         # Run offline LLM baseline (Qwen 7B, no API)
 ├── run_router_only.py              # Run router system separately
 ├── run_slm_only.py                 # Run SLM baseline separately
 │
@@ -382,9 +383,10 @@ delegate/
 │
 ├── experiments/                    # Benchmarking & evaluation
 │   ├── run_comparison.py           # Main entry point - run all experiments
-│   ├── llm_experiment.py           # Baseline: Gemini alone
+│   ├── llm_experiment.py           # Baseline: Gemini alone (online)
+│   ├── offline_llm_experiment.py   # Baseline: Qwen 7B alone (offline)
 │   ├── router_experiment.py        # Main experiment: Router system
-│   ├── slm_experiment.py           # Baseline: Qwen alone
+│   ├── slm_experiment.py           # Baseline: Qwen 1.5B alone
 │   ├── router_agent.py             # Router agent (experiment version w/ metrics)
 │   └── utils.py                    # Shared utilities (answer checking, metrics)
 │
@@ -428,11 +430,18 @@ delegate/
 
 #### Standalone Experiment Scripts
 
-**`run_llm_only.py`** - LLM baseline standalone
+**`run_llm_only.py`** - LLM baseline standalone (Online/API)
 - Run Gemini 2.5 Flash alone on GSM8K problems
 - Supports `--input-csv` to use existing sample sets
 - Creates `samples.csv` for reproducibility across experiments
 - Useful for quick testing without loading SLM model
+
+**`run_offline_llm_only.py`** - Offline LLM baseline (No API)
+- Run Qwen 2.5 Math 7B locally (offline, no API needed)
+- Supports custom model via `--model` flag
+- ~14GB model download, GPU recommended
+- Compare offline vs online LLM performance
+- Use `--input-csv` to test on same samples as Gemini
 
 **`run_router_only.py`** - Router system standalone
 - Run Gemini + Qwen tool delegation system
@@ -492,10 +501,16 @@ delegate/
 - Generates comparison reports and metrics
 - Saves results in structured JSON format
 
-**`experiments/llm_experiment.py`** - Gemini baseline
+**`experiments/llm_experiment.py`** - Gemini baseline (online)
 - Direct prompting with Gemini 2.5 Flash (no tool calling)
 - Tracks tokens and latency
-- Establishes upper bound on quality
+- Establishes upper bound on quality (API-based)
+
+**`experiments/offline_llm_experiment.py`** - Offline LLM baseline
+- Direct prompting with Qwen 2.5 Math 7B (offline, no API)
+- Runs locally on GPU/CPU
+- Compare offline vs online LLM performance
+- No API costs, but requires local compute
 
 **`experiments/router_experiment.py`** - Router system evaluation
 - Runs router agent on test set
@@ -1077,7 +1092,8 @@ python experiments/run_comparison.py --samples 10  # Quick test (all 3 experimen
 python experiments/run_comparison.py --help      # See all options
 
 # Experiments (Separate) - Same questions
-python run_llm_only.py --samples 10              # Step 1: LLM baseline
+python run_llm_only.py --samples 10              # Step 1: LLM baseline (Gemini API)
+python run_offline_llm_only.py --samples 10     # Alternative: Offline LLM (Qwen 7B)
 python run_router_only.py --input-csv results_*/samples.csv  # Step 2: Router
 python run_slm_only.py --input-csv results_*/samples.csv     # Step 3: SLM
 
