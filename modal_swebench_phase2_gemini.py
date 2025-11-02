@@ -89,8 +89,8 @@ HINTS: ecommerce/cart/cart.py
 
 ACTIONS:
 1. fetch_file_metadata("ecommerce/cart/cart.py") → ShoppingCart class found
-2. fetch_code_section("ecommerce/cart/cart.py", function="calculate_total") → Got code
-3. generate_patch_with_qwen(problem, code, file) → Patch generated
+2. fetch_code_section("ecommerce/cart/cart.py", function="calculate_total") → Got code at line 45
+3. generate_patch_with_qwen(problem, code, file, start_line=45) → Patch generated
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -103,8 +103,8 @@ HINTS: sympy/simplify/fu.py
 ACTIONS:
 1. fetch_file_metadata("sympy/simplify/fu.py") → 691 functions, 66KB
 2. search_codebase("sympy/simplify/fu.py", "power trig") → Found _TR56
-3. fetch_code_section("sympy/simplify/fu.py", function="_TR56") → Got code
-4. generate_patch_with_qwen(problem, code, file) → Patch generated
+3. fetch_code_section("sympy/simplify/fu.py", function="_TR56") → Got code at line 234
+4. generate_patch_with_qwen(problem, code, file, start_line=234) → Patch generated
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -181,7 +181,15 @@ def get_tool_definitions():
         ),
         genai.protos.FunctionDeclaration(
             name="generate_patch_with_qwen",
-            description="Delegate patch generation to Qwen SLM. Use this after localizing the bug.",
+            description="""Delegate patch generation to Qwen SLM. Use this after localizing the bug.
+
+CRITICAL: You MUST include the start_line parameter!
+- If you used fetch_code_section, pass the start_line it returned
+- If you extracted code at specific lines, pass that line number
+- NEVER omit start_line or it will default to 1 (incorrect!)
+- Example: If code is at line 150, pass start_line=150
+
+The start_line is essential for generating patches that can be applied correctly.""",
             parameters=genai.protos.Schema(
                 type=genai.protos.Type.OBJECT,
                 properties={
@@ -199,10 +207,10 @@ def get_tool_definitions():
                     ),
                     "start_line": genai.protos.Schema(
                         type=genai.protos.Type.INTEGER,
-                        description="Start line number of the code section"
+                        description="REQUIRED: Starting line number of the code section in the file. Get this from fetch_code_section response or the line number where you found the code."
                     )
                 },
-                required=["file_path", "code_section", "problem_description"]
+                required=["file_path", "code_section", "problem_description", "start_line"]
             )
         )
     ]
@@ -1017,21 +1025,118 @@ FIXED CODE:
         elif '```' in fixed_code:
             fixed_code = fixed_code.split('```')[1].split('```')[0].strip()
         
-        # Generate diff
+        # Generate diff with ABSOLUTE line numbers
         original_lines = code_section.splitlines(keepends=True)
         fixed_lines = fixed_code.splitlines(keepends=True)
+        
         diff = difflib.unified_diff(
-            original_lines, fixed_lines,
+            original_lines, 
+            fixed_lines,
             fromfile=f'a/{file_path}',
             tofile=f'b/{file_path}',
-            lineterm=''
+            lineterm='',
+            n=3  # 3 lines of context (standard)
         )
-        patch = '\n'.join(diff)
         
-        if not patch:
-            patch = "No changes detected - model may not have fixed the code"
+        # Convert to list and adjust line numbers
+        diff_lines = list(diff)
+        
+        if not diff_lines:
+            return "No changes detected - model may not have fixed the code"
+        
+        # Adjust line numbers in hunk headers to use absolute positions
+        import re
+        
+        # Ensure start_line is an integer
+        try:
+            base_start_line = int(float(start_line))
+        except (ValueError, TypeError):
+            print(f"⚠️  WARNING: Invalid start_line '{start_line}', defaulting to 1")
+            base_start_line = 1
+        
+        # Add warning if start_line is 1 (likely incorrect unless it's truly at the start)
+        if base_start_line == 1:
+            print(f"⚠️  WARNING: start_line is 1! This may cause hunk failures if code is not at file start.")
+        
+        adjusted_diff = []
+        cumulative_line_offset = 0  # Track line offset for multi-hunk patches
+        
+        for line in diff_lines:
+            if line.startswith('@@'):
+                # Parse hunk header: @@ -1,5 +1,6 @@ or @@ -1 +1,5 @@
+                # Handle both formats: with and without comma after line number
+                match = re.match(r'@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)', line)
+                if match:
+                    old_start, old_count, new_start, new_count, context = match.groups()
+                    old_start = int(old_start)
+                    new_start = int(new_start)
+                    
+                    # Default count to 1 if not specified
+                    old_count = old_count or '1'
+                    new_count = new_count or '1'
+                    
+                    # For the first hunk, use base_start_line
+                    # For subsequent hunks, calculate offset from the first hunk
+                    if cumulative_line_offset == 0:
+                        # First hunk: adjust from relative line 1 to absolute start_line
+                        adjusted_old_start = base_start_line + old_start - 1
+                        adjusted_new_start = base_start_line + new_start - 1
+                        cumulative_line_offset = old_start - 1  # Remember the offset
+                    else:
+                        # Subsequent hunks: adjust relative to the base
+                        adjusted_old_start = base_start_line + old_start - 1
+                        adjusted_new_start = base_start_line + new_start - 1
+                    
+                    line = f'@@ -{adjusted_old_start},{old_count} +{adjusted_new_start},{new_count} @@{context}'
+                    print(f"   📍 Adjusted hunk: line {old_start} → {adjusted_old_start}")
+            adjusted_diff.append(line)
+        
+        patch = '\n'.join(adjusted_diff)
+        
+        # POST-PROCESSING: Fix common patch formatting issues
+        patch = self._fix_patch_format(patch)
         
         return patch
+    
+    def _fix_patch_format(self, patch: str) -> str:
+        """
+        Post-process patch to fix common formatting issues.
+        
+        Fixes:
+        - Double newlines in diff lines (e.g., "+code\\n\\n")
+        - Missing final newline
+        - Trailing whitespace issues
+        """
+        if not patch or patch == "No changes detected - model may not have fixed the code":
+            return patch
+        
+        lines = patch.split('\n')
+        fixed_lines = []
+        i = 0
+        
+        while i < len(lines):
+            line = lines[i]
+            
+            # Check if this is a diff line (+, -, or space) followed by empty line
+            if line and line[0] in ('+', '-', ' '):
+                # Look ahead for empty line
+                if i + 1 < len(lines) and lines[i + 1] == '' and not line.startswith('@@'):
+                    # Skip the empty line
+                    fixed_lines.append(line)
+                    i += 2
+                    continue
+            
+            fixed_lines.append(line)
+            i += 1
+        
+        result = '\n'.join(fixed_lines)
+        
+        # Ensure final newline (CRITICAL for patch application)
+        if result and not result.endswith('\n'):
+            result += '\n'
+            print("   ✅ Added missing final newline to patch")
+        
+        return result
     
     @modal.method()
     def _generate_patch_single(
@@ -1456,6 +1561,11 @@ Your task: Localize the bug and delegate patch generation to generate_patch_with
                 print(f"   ✅ Worker completed in {worker_latency:.1f}s")
                 print(f"   Generated {len(patch)} chars")
                 
+                # CRITICAL: Ensure patch ends with newline (defense in depth)
+                if patch and not patch.endswith('\n') and not patch.startswith("No changes"):
+                    patch += '\n'
+                    print(f"   ⚠️  Added missing final newline (safety check)")
+                
                 final_patch = patch
                 tool_response = {
                     "status": "success",
@@ -1572,6 +1682,11 @@ Your task: Localize the bug and delegate patch generation to generate_patch_with
     print(f"Avg tokens/turn: {avg_tokens_per_turn:.0f}")
     print(f"Tokens/second: {tokens_per_second:.1f}")
     print(f"{'='*80}\n")
+    
+    # FINAL SAFETY CHECK: Ensure patch has final newline before returning
+    if final_patch and not final_patch.endswith('\n') and not final_patch.startswith("No "):
+        final_patch += '\n'
+        print(f"⚠️  FINAL CHECK: Added missing newline before returning")
     
     # Prepare result
     result = {
